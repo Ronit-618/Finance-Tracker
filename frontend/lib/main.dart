@@ -4,8 +4,10 @@ import 'services/api_service.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/entry_list_screen.dart';
 import 'screens/pending_screen.dart';
+import 'screens/reports_screen.dart';
 
 final _api = ApiService('http://192.168.15.106:5044');
+final RouteObserver<ModalRoute> routeObserver = RouteObserver<ModalRoute>();
 
 void main() {
   runApp(const ProviderScope(child: MyApp()));
@@ -19,6 +21,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Finance Tracker',
       debugShowCheckedModeBanner: false,
+      navigatorObservers: [routeObserver],
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
@@ -28,6 +31,7 @@ class MyApp extends StatelessWidget {
         '/dashboard': (context) => DashboardScreen(api: _api),
         '/pending': (context) => PendingScreen(api: _api),
         '/transactions': (context) => EntryListScreen(api: _api),
+        '/reports': (context) => ReportsScreen(api: _api),
       },
     );
   }

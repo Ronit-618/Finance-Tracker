@@ -281,7 +281,36 @@ Notes:
   - **Fix:** Both widgets now check `Permission.manageExternalStorage.isGranted` before attempting `Image.file()`. If not granted, they show a tappable prompt ("Tap to grant file access to view screenshot") that requests the permission and rebuilds on grant via `StatefulBuilder.setInnerState`.
   - Added `debugPrint` inside `errorBuilder` on both widgets for future diagnostics.
   - JSON mapping confirmed correct: backend `ScreenshotPath` (PascalCase) → ASP.NET Core camelCase serialization → `screenshotPath` → frontend `json['screenshotPath'] as String?` — no mismatch.
-  - File path round-trip confirmed correct: full `/storage/emulated/0/FinanceTracker/Transaction/Screenshot/...` path is stored, returned, and passed to `Image.file()`.
+     - File path round-trip confirmed correct: full `/storage/emulated/0/FinanceTracker/Transaction/Screenshot/...` path is stored, returned, and passed to `Image.file()`.
+- ✅ **30. Dashboard visualizations (4 charts)** — Done on 2026-07-29.
+  - Added `fl_chart` (`^0.70.2`) dependency to `pubspec.yaml`.
+  - **Backend:** New `GET /api/Entry/by-category?type=0` endpoint in `EntriesController.cs`, backed by new `CategoryTotalResponse` DTO. Returns expense totals grouped by category, ordered descending.
+  - **Frontend model:** `models/category_total.dart` — mirrors the backend DTO.
+  - **ApiService:** Added `getCategoryTotals({int? type})` method.
+  - **4 chart widgets** created under `widgets/`:
+    1. `expense_category_chart.dart` — Pie/donut chart with legend, one slice per category with distinct colors and percentage labels.
+    2. `income_vs_expense_chart.dart` — Grouped bar chart showing last 6 months of Income (green) vs Expense (red) bars side-by-side, with month labels and compact Y-axis formatting.
+    3. `balance_trend_chart.dart` — Smooth line chart with shaded area, plotting cumulative running balance across all monthly periods.
+    4. `top_spending_list.dart` — Ranked horizontal list of top 5 expense categories with proportional progress bars and Rs. amounts.
+  - Each chart in its own Card with matching elevation/padding and empty-state fallback ("No data yet").
+  - Dashboard loads all 4 sections alongside existing summary card and monthly trend; `RefreshIndicator` reloads all data.
+  - Builds with 0 errors on both frontend (flutter analyze) and backend (dotnet build).
+- ✅ **30b. Chart layout fixes + Savings chart + auto-refresh** — Done on 2026-07-29.
+  - **Expense by Category (pie chart):** Fixed layout — pie chart now centered in a contained 160×160 box (no overflow), legend moved to bottom-right via `Align` + `Wrap` (no overlap with circle), amounts removed from labels (shows `CategoryName (XX.X%)` only).
+  - **Balance Trend removed** — replaced with **Savings chart** (`widgets/savings_chart.dart`): bar chart showing savings (`Income - Expense`) per month for the last 6 months, positive bars green, negative bars red.
+  - **Dynamic auto-refresh:** Added `RouteObserver` + `RouteAware` mixin to `DashboardScreen` — `didPopNext()` calls `_loadData()` whenever the user navigates back to Dashboard, so all cards/charts reflect the latest data after any add/edit/delete on other screens.
+  - **Logo home button:** Tapping the `CircleAvatar` logo in the AppBar (Dashboard, Pending, Transactions screens) now calls `Navigator.pushNamedAndRemoveUntil` to `/dashboard`, acting as a home button that always returns to the root page.
+- ✅ **31. Reports screen (Trial Balance + Monthly Transactions)** — Done on 2026-07-29.
+  - **Backend:** New DTOs `TrialBalanceItem` / `TrialBalanceResponse` in `backend/Dtos/TrialBalanceResponse.cs`. New endpoint `GET /api/Entry/trial-balance?year=2026&month=7` in `EntriesController.cs` — filters Entries by year/month, groups by Category, sums Debit vs Credit amounts per category, returns items + totalDebit/totalCredit summary.
+  - **Drawer:** Added `reports` to `DrawerDestination` enum (`drawer_provider.dart`). Added "Reports" `ListTile` with `Icons.description` in `app_drawer.dart` with the same navigation pattern (popUntil-dashboard-then-pushReplacement for top-level pages). Back-button from Reports returns to Dashboard.
+  - **Routing:** Added `/reports` route in `main.dart` pointing to `ReportsScreen`.
+  - **`ReportsScreen`** (`screens/reports_screen.dart`):
+    - Month/Year picker via two `DropdownButton`s (Month dropdown shows full month names, Year dropdown covers a 5-year window), defaults to current month/year.
+    - `TabBar` with two tabs: "Trial Balance" and "Transactions".
+    - **Trial Balance tab:** Bordered `Table` widget with `Account Name | Debit | Credit` header row, each category as a row (blank cell if zero), thick 2px top border before the Totals row showing `TotalDebit` / `TotalCredit`. Title "Trial Balance" with subtitle "For the month of July 2026". Currency formatted as `Rs. X,XXX.00`. Shows "No data for this month" if empty.
+    - **Transactions tab:** Reuses the same entry tile style as `EntryListScreen` (icon circle, description, date, category, signed colored amount). Double-tap opens `TransactionDetailScreen` via `Navigator.push`. Shows "No transactions this month" if empty.
+  - **Frontend model + API:** Created `models/trial_balance_item.dart` with `TrialBalanceItem` and `TrialBalanceResponse` classes. Added `getTrialBalance(year, month)` to `ApiService`.
+  - Builds with 0 errors (flutter analyze, dotnet build).
 
 ## 8. Frontend Flow (Flutter — Dart)
 

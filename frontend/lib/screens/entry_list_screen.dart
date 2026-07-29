@@ -74,9 +74,12 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
-            child: CircleAvatar(
-              radius: 22,
-              backgroundImage: AssetImage('assets/images/logoST.png'),
+            child: GestureDetector(
+              onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false),
+              child: CircleAvatar(
+                radius: 22,
+                backgroundImage: AssetImage('assets/images/logoST.png'),
+              ),
             ),
           ),
         ],

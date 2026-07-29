@@ -57,6 +57,60 @@ public class EntryController : ControllerBase
         };
     }
 
+    [HttpGet("trial-balance")]
+    public async Task<ActionResult<TrialBalanceResponse>> GetTrialBalance(
+        [FromQuery] int year,
+        [FromQuery] int month)
+    {
+        var from = new DateTime(year, month, 1);
+        var to = from.AddMonths(1).AddDays(-1);
+
+        var entries = await _db.Entries
+            .Where(e => e.Date >= from && e.Date <= to)
+            .ToListAsync();
+
+        var items = entries
+            .GroupBy(e => e.Category)
+            .Select(g => new TrialBalanceItem
+            {
+                Category = g.Key.ToString(),
+                DebitTotal = g.Where(e => e.PaymentType == PaymentType.Debit).Sum(e => e.Amount),
+                CreditTotal = g.Where(e => e.PaymentType == PaymentType.Credit).Sum(e => e.Amount)
+            })
+            .OrderBy(i => i.Category)
+            .ToList();
+
+        return new TrialBalanceResponse
+        {
+            TotalDebit = items.Sum(i => i.DebitTotal),
+            TotalCredit = items.Sum(i => i.CreditTotal),
+            Items = items
+        };
+    }
+
+    [HttpGet("by-category")]
+    public async Task<ActionResult<List<CategoryTotalResponse>>> GetByCategory(
+        [FromQuery] EntryType? type = null)
+    {
+        var query = _db.Entries.AsQueryable();
+
+        if (type.HasValue)
+            query = query.Where(e => e.Type == type.Value);
+
+        var result = await query
+            .GroupBy(e => e.Category)
+            .Select(g => new CategoryTotalResponse
+            {
+                Category = g.Key.ToString(),
+                Total = g.Sum(e => e.Amount),
+                EntryCount = g.Count()
+            })
+            .OrderByDescending(r => r.Total)
+            .ToListAsync();
+
+        return result;
+    }
+
     [HttpGet("grouped")]
     public async Task<ActionResult<List<EntryGroupResponse>>> GetGrouped(
         [FromQuery] string period = "month",
