@@ -1,14 +1,16 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/entry.dart';
+import '../providers/settings_providers.dart';
 import '../services/api_service.dart';
 import '../utils/snackbar_helper.dart';
 import 'entry_form_screen.dart';
 
-class TransactionDetailScreen extends StatelessWidget {
+class TransactionDetailScreen extends ConsumerWidget {
   final Entry entry;
   final ApiService api;
 
@@ -22,7 +24,7 @@ class TransactionDetailScreen extends StatelessWidget {
       const {0: 'PersonalPayment', 1: 'BillSharing', 2: 'Loan', 3: 'Income'}[c] ??
       'Unknown';
 
-  void _edit(BuildContext context) async {
+  void _edit(BuildContext context, WidgetRef ref) async {
     final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -79,7 +81,7 @@ class TransactionDetailScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final e = entry;
     final isIncome = e.type == 1;
 
@@ -90,7 +92,7 @@ class TransactionDetailScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit),
             tooltip: 'Edit',
-            onPressed: () => _edit(context),
+            onPressed: () => _edit(context, ref),
           ),
           IconButton(
             icon: const Icon(Icons.delete),
@@ -157,7 +159,10 @@ class TransactionDetailScreen extends StatelessWidget {
                   const Text('Details',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   const Divider(),
-                  _detailRow('Date', DateFormat('MMM dd, yyyy').format(e.date)),
+                  _detailRow('Date',
+                    ref.watch(dateFormatProvider) == DateFormatMode.bs && e.bsDate != null
+                        ? e.bsDate!
+                        : DateFormat('MMM dd, yyyy').format(e.date)),
                   _detailRow('Category', _catName(e.category)),
                   _detailRow('Type', isIncome ? 'Income' : 'Expense'),
                   _detailRow('Payment Type',

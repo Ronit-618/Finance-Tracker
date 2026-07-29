@@ -311,6 +311,38 @@ Notes:
     - **Transactions tab:** Reuses the same entry tile style as `EntryListScreen` (icon circle, description, date, category, signed colored amount). Double-tap opens `TransactionDetailScreen` via `Navigator.push`. Shows "No transactions this month" if empty.
   - **Frontend model + API:** Created `models/trial_balance_item.dart` with `TrialBalanceItem` and `TrialBalanceResponse` classes. Added `getTrialBalance(year, month)` to `ApiService`.
   - Builds with 0 errors (flutter analyze, dotnet build).
+- ✅ **32. Bikram Sambat (BS) / Nepali calendar support** — Done on 2026-07-29.
+  - **Package:** Added `BSDateConverter` v1.3.0 NuGet package. Inspected actual API via reflection — `DateConverter` static class with methods: `ConvertADToBS(string)` (AD→BS "YYYY-MM-DD"), `ConvertBSToAD(string)` (BS→AD "YYYY-MM-DD"), `ConvertToBSWithName(string)` ("13 Shrawan 2083"), `ConvertToADWithName(string)` ("31 July 2026"), `GetTodayDateAD()`, `GetTodayDateBS()`.
+  - **`Services/NepaliDateService.cs`** — static helper wrapping `DateConverter`:
+    - `AdToBs(DateTime)` → formatted BS string (e.g. "13 Shrawan 2083")
+    - `AdToBsShort(DateTime)` → "YYYY-MM-DD" BS string
+    - `BsToAd(int bsYear, int bsMonth, int bsDay)` → AD DateTime
+    - `GetBsMonthAdRange(int bsYear, int bsMonth)` → (AD start, AD end) tuple for a BS month
+  - **`EntryResponse` DTO** — added `string? BsDate` field, populated by `NepaliDateService.AdToBs(e.Date)` in `MapToResponse()`.
+  - **`GET /api/Entry/trial-balance`** — now accepts optional `bsYear`/`bsMonth` query params alongside existing `year`/`month`. Converts BS month range to AD internally via `GetBsMonthAdRange()`, then reuses the same grouping logic.
+  - **`GET /api/Entry`** — added optional `bsYear`/`bsMonth` params; computes AD `from`/`to` range before filtering.
+  - AD-based params (`year`/`month`, `from`/`to`) continue working exactly as before — purely additive.
+  - Verified conversion: AD 2026-07-29 → BS 2083-04-13 ("13 Shrawan 2083"). BS 2083-4 range → AD 2026-07-17 to 2026-08-16.
+  - Builds with 0 errors (dotnet build + flutter analyze).
+- ✅ **33. Settings screen + theme toggle + AD/BS date format toggle** — Done on 2026-07-29.
+  - **Dependencies:** Added `shared_preferences ^2.3.0`, `nepali_date_picker ^6.0.2`.
+  - **Providers** (`providers/settings_providers.dart`):
+    - `DateFormatMode` enum (`ad`, `bs`), `DateFormatNotifier` (persists to `SharedPreferences` key `dateFormat`).
+    - `ThemeModeNotifier` (persists to `SharedPreferences` key `themeMode`).
+    - `dateFormatProvider` / `themeModeProvider` expose these as `StateNotifierProvider`s.
+  - **`Entry` model:** Added `String? bsDate` field parsed from backend JSON.
+  - **`DateDisplay` helper** (`widgets/date_display.dart`): `formatDate(WidgetRef, Entry)` returns BS formatted date (`entry.bsDate`) when mode is `bs`, or AD `DateFormat('MMM dd, yyyy')` otherwise. `DateDisplay` ConsumerWidget widget for drop-in replacement.
+  - **`SettingsScreen`** (`screens/settings_screen.dart`): Drawer-linked top-level page with two `SwitchListTile`s: Date Format (AD/BS) and Theme (Light/Dark). Both toggle immediately via Riverpod state.
+  - **`main.dart`**: `MyApp` changed to `ConsumerWidget` — reads `themeModeProvider` and sets `MaterialApp.themeMode`, `theme` (light), `darkTheme` (dark using same seed color). Added `/settings` route.
+  - **Drawer:** Added `settings` to `DrawerDestination` enum, "Settings" ListTile with `Icons.settings` in `app_drawer.dart`, route-aware navigation.
+  - **BS date picker:** Entry Form's date picker shows `showMaterialDatePicker` (Nepali calendar) when BS mode is active, converting via `_date.toNepaliDateTime()` / `picked.toDateTime()`.
+  - **Date format applied app-wide** in:
+    - `entry_list_screen.dart` — transaction tiles use `DateDisplay`
+    - `reports_screen.dart` — transaction tiles use `DateDisplay`
+    - `transaction_detail_screen.dart` — detail Date row reads `dateFormatProvider`
+    - `entry_form_screen.dart` — date label shows BS formatted via `NepaliDateTime.format()`
+  - Settings persist across app restarts via `SharedPreferences`.
+  - Builds with 0 errors (flutter analyze).
 
 ## 8. Frontend Flow (Flutter — Dart)
 

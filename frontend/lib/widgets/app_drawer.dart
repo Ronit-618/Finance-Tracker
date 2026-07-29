@@ -17,7 +17,7 @@ class AppDrawer extends ConsumerWidget {
 
     if (currentRoute == '/dashboard') {
       Navigator.pushNamed(context, targetRoute);
-    } else if (currentRoute == '/pending' || currentRoute == '/transactions' || currentRoute == '/reports') {
+    } else if (currentRoute == '/pending' || currentRoute == '/transactions' || currentRoute == '/reports' || currentRoute == '/settings') {
       Navigator.pushReplacementNamed(context, targetRoute);
     } else {
       Navigator.popUntil(context, ModalRoute.withName('/dashboard'));
@@ -82,6 +82,12 @@ class AppDrawer extends ConsumerWidget {
             title: const Text('Reports'),
             selected: currentDest == DrawerDestination.reports,
             onTap: () => _navigateTo(context, ref, '/reports', DrawerDestination.reports),
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Settings'),
+            selected: currentDest == DrawerDestination.settings,
+            onTap: () => _navigateTo(context, ref, '/settings', DrawerDestination.settings),
           ),
         ],
       ),

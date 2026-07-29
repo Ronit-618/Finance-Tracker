@@ -6,6 +6,7 @@ import '../models/pending_store.dart';
 import '../providers/drawer_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/date_display.dart';
 import 'transaction_detail_screen.dart';
 
 class EntryListScreen extends ConsumerStatefulWidget {
@@ -122,8 +123,11 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
             ),
           ),
           title: Text(entry.description),
-          subtitle: Text(
-            '${DateFormat('MMM dd, yyyy').format(entry.date)}  •  ${_catName(entry.category)}',
+          subtitle: Row(
+            children: [
+              DateDisplay(entry: entry),
+              Text('  •  ${_catName(entry.category)}'),
+            ],
           ),
           trailing: Text(
             '${isIncome ? '+' : '-'}${NumberFormat.currency(symbol: 'Rs. ').format(entry.amount)}',

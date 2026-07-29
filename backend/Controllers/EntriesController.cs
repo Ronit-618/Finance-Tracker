@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using FinanceTracker.Api.Data;
 using FinanceTracker.Api.Dtos;
 using FinanceTracker.Api.Models;
+using FinanceTracker.Api.Services;
 
 namespace FinanceTracker.Api.Controllers;
 
@@ -23,8 +24,17 @@ public class EntryController : ControllerBase
         [FromQuery] DateTime? to,
         [FromQuery] EntryCategory? category,
         [FromQuery] EntryType? type,
-        [FromQuery] PaymentType? paymentType)
+        [FromQuery] PaymentType? paymentType,
+        [FromQuery] int? bsYear,
+        [FromQuery] int? bsMonth)
     {
+        if (bsYear.HasValue && bsMonth.HasValue)
+        {
+            var (bsFrom, bsTo) = NepaliDateService.GetBsMonthAdRange(bsYear.Value, bsMonth.Value);
+            from = bsFrom;
+            to = bsTo;
+        }
+
         var query = FilterQuery(from, to, category, type, paymentType);
 
         var entries = await query
@@ -59,11 +69,27 @@ public class EntryController : ControllerBase
 
     [HttpGet("trial-balance")]
     public async Task<ActionResult<TrialBalanceResponse>> GetTrialBalance(
-        [FromQuery] int year,
-        [FromQuery] int month)
+        [FromQuery] int? year,
+        [FromQuery] int? month,
+        [FromQuery] int? bsYear,
+        [FromQuery] int? bsMonth)
     {
-        var from = new DateTime(year, month, 1);
-        var to = from.AddMonths(1).AddDays(-1);
+        if (bsYear.HasValue && bsMonth.HasValue)
+        {
+            var (bsFrom, bsTo) = NepaliDateService.GetBsMonthAdRange(bsYear.Value, bsMonth.Value);
+            return await GetTrialBalanceInternal(bsFrom, bsTo);
+        }
+
+        if (!year.HasValue || !month.HasValue)
+            return BadRequest("Provide either year+month or bsYear+bsMonth");
+
+        var adFrom = new DateTime(year.Value, month.Value, 1);
+        var adTo = adFrom.AddMonths(1).AddDays(-1);
+        return await GetTrialBalanceInternal(adFrom, adTo);
+    }
+
+    private async Task<ActionResult<TrialBalanceResponse>> GetTrialBalanceInternal(DateTime from, DateTime to)
+    {
 
         var entries = await _db.Entries
             .Where(e => e.Date >= from && e.Date <= to)
@@ -295,6 +321,7 @@ public class EntryController : ControllerBase
         Amount = e.Amount,
         ScreenshotPath = e.ScreenshotPath,
         IsCompleted = e.IsCompleted,
-        CreatedAt = e.CreatedAt
+        CreatedAt = e.CreatedAt,
+        BsDate = NepaliDateService.AdToBs(e.Date)
     };
 }

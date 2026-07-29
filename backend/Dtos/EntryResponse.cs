@@ -15,4 +15,5 @@ public class EntryResponse
     public string? ScreenshotPath { get; set; }
     public int IsCompleted { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string? BsDate { get; set; }
 }
