@@ -1,0 +1,55 @@
+# ─── Flutter / Dart ────────────────────────────────────────────────────────────
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub/
+.pub-cache/
+build/
+coverage/
+app.*.symbols
+app.*.map.json
+**/doc/api/
+**/ios/Flutter/.last_build_id
+
+# Flutter — platform build outputs
+frontend/android/.gradle/
+frontend/android/app/debug/
+frontend/android/app/profile/
+frontend/android/app/release/
+frontend/android/key.properties
+frontend/android/**/*.keystore
+frontend/android/**/*.jks
+frontend/android/local.properties
+frontend/android/gradlew
+frontend/android/gradlew.bat
+frontend/android/gradle-wrapper.jar
+frontend/ios/Pods/
+frontend/ios/DerivedData/
+
+# ─── ASP.NET Core / .NET ───────────────────────────────────────────────────────
+backend/**/bin/
+backend/**/obj/
+*.user
+backend/**/appsettings.Development.json
+
+# ─── General ───────────────────────────────────────────────────────────────────
+.vs/
+*.log
+*.mdf
+*.ldf
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+
+# ─── IntelliJ / Android Studio ─────────────────────────────────────────────────
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# ─── OS files ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
