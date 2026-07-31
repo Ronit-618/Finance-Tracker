@@ -95,7 +95,7 @@ class ExpenseCategoryChart extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         '${data[i].category} (${(pct * 100).toStringAsFixed(1)}%)',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       ),
                     ],
                   );

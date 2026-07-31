@@ -343,6 +343,33 @@ Notes:
     - `entry_form_screen.dart` — date label shows BS formatted via `NepaliDateTime.format()`
   - Settings persist across app restarts via `SharedPreferences`.
   - Builds with 0 errors (flutter analyze).
+- ✅ **34. Bug fix: transaction tile subtitle overflow with BS dates** — Done on 2026-07-29.
+  - **Root cause:** The subtitle `Row` (`DateDisplay` + `  •  CategoryName`) had no `Expanded`/`Flexible` wrapping — both child `Text` widgets took their intrinsic width. BS mode dates (e.g. "13 Shrawan 2083") are longer than AD dates ("Jul 28, 2026"), overflowing into the fixed-width `trailing` amount column.
+  - **Fix:** Wrapped text children in `Expanded` → inner `Row` with `Flexible` around each child, with `maxLines: 1` and `TextOverflow.ellipsis`. Also added `maxLines`/`overflow` params to `DateDisplay` widget.
+  - **Files changed:** `widgets/date_display.dart`, `screens/entry_list_screen.dart`, `screens/reports_screen.dart`.
+  - **Other screens verified safe:** `TransactionDetailScreen` uses `_detailRow` with `Expanded` for value; Dashboard/Pending don't render entry dates in constrained Rows.
+  - Builds with 0 errors (flutter analyze).
+- ✅ **35. Bug fix: Reports month/year selector respects BS mode** — Done on 2026-07-31.
+  - **Root cause (two bugs):** (1) `_year`/`_month` in `ReportsScreen` were AD values reused for both modes, so in BS mode the dropdowns showed an AD year (not in the BS-year items list — Flutter `DropdownButton` asserts) against BS month names, i.e. a mismatched/stale period. (2) `_isBs` read `dateFormatProvider` with `ref.read` only — the screen never rebuilt and never refetched when the app-wide AD/BS toggle changed while Reports was open.
+  - **Fix:** The screen now keeps the selected period in **both** calendars — `_adYear/_adMonth` and `_bsYear/_bsMonth` — kept in sync on every pick via `nepali_utils` conversion (`DateTime(...).toNepaliDateTime()` ↔ `NepaliDateTime(...).toDateTime()`), so switching modes never resets to today; the selector shows the equivalent period in the other calendar.
+  - **AD mode:** unchanged two-dropdown picker (month names + a year dropdown). The AD year dropdown is now derived from the BS picker range (`NepaliDateTime(bsMin,1,1).toDateTime().year` … `NepaliDateTime(bsMax,12,30).toDateTime().year`) so the converted equivalent AD year is always a valid dropdown item.
+  - **BS mode:** replaced the dropdowns with a tappable "BS Month: <Month> <Year>" field that opens `showMaterialDatePicker` (the exact Nepali calendar widget the Entry Form's date field uses) — no new picker was built. `initialDate` is clamped into the picker's range to guard the boundary case where an AD pick maps to a BS month just outside it. Selected `year`/`month` drive the data fetch directly.
+  - **Mode-change handling:** `build` now does `ref.watch(dateFormatProvider)` (selector + subtitle rebuild on toggle) and `initState` registers `ref.listen(dateFormatProvider, ...)` which calls `_loadData()` so both tabs refetch with the active mode's params.
+  - **Data-fetch params confirmed:** BS mode sends `bsYear`/`bsMonth` to both `getTrialBalance()` and `getEntries()` (backend `GET /api/Entry` and `trial-balance` both compute the AD range from `bsYear/bsMonth`); AD mode sends `year`/`month` to trial-balance and AD `from`/`to` to `GET /api/Entry`. The selector's picked value is exactly what is sent — no stale values.
+  - **Files changed:** `screens/reports_screen.dart`.
+  - Builds with 0 errors (flutter analyze); conversion sanity tests pass (AD↔BS round-trip, dropdown bounds, picker clamp).
+- ✅ **36. Bug fix: Trial Balance table + Dashboard charts readable in dark mode** — Done on 2026-07-31.
+  - **Trial Balance table (primary target):** replaced all hardcoded light-mode colors with theme tokens —
+    - Cell/header text: `Theme.of(context).colorScheme.onSurface` (was `Colors.black`).
+    - Header row background: `colorScheme.surfaceContainerHighest` (subtle shade distinct from body rows; was `Colors.grey.shade100`).
+    - Regular row borders: `colorScheme.outline`, with alpha dropped to 0.6 in dark mode so the grid doesn't look harsh (was `Colors.grey.shade400`/black).
+    - Totals row thick divider: kept 2px `BorderSide(color: colorScheme.onSurface)` — full-opacity `onSurface` gives higher contrast than the regular dividers, so the totals row stays visually distinct in both light and dark mode.
+    - Empty state + subtitle text: `colorScheme.onSurfaceVariant` (was `Colors.grey.shade600`).
+  - **Reports Transactions tab:** income/expense icon + amount colors are now brightness-aware — `Colors.green`/`Colors.red` in light mode, `Colors.green.shade400`/`Colors.red.shade400` in dark mode so they stay legible against a dark card (same green/red scheme used app-wide, no new colors).
+  - **Dashboard charts (checked while in the area):** summary label `Colors.grey` → `colorScheme.onSurfaceVariant`; Monthly Trend track `Colors.red.shade100` → `colorScheme.errorContainer` (keeps the red expense tint, dark-friendly); `IncomeVsExpenseChart` and `SavingsChart` axis labels now use `colorScheme.onSurfaceVariant` and gridlines use `colorScheme.outlineVariant` (alpha 0.5) instead of fl_chart's light-grey defaults; `TopSpendingList` progress track `Colors.grey.shade200` → `colorScheme.surfaceContainerHighest`.
+  - **Also fixed:** `transaction_detail_screen.dart` screenshot-placeholder used deprecated `colorScheme.surfaceVariant` → `surfaceContainerHighest` (resolves deprecation info).
+  - **Files changed:** `screens/reports_screen.dart`, `screens/dashboard_screen.dart`, `screens/transaction_detail_screen.dart`, `widgets/income_vs_expense_chart.dart`, `widgets/savings_chart.dart`, `widgets/top_spending_list.dart`.
+  - Builds with 0 errors, 0 warnings (flutter analyze).
 
 ## 8. Frontend Flow (Flutter — Dart)
 

@@ -64,7 +64,7 @@ class TopSpendingList extends StatelessWidget {
                       borderRadius: BorderRadius.circular(3),
                       child: LinearProgressIndicator(
                         value: fraction,
-                        backgroundColor: Colors.grey.shade200,
+                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                         color: Colors.red.shade400,
                         minHeight: 6,
                       ),

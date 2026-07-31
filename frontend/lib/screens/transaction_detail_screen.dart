@@ -114,8 +114,8 @@ class TransactionDetailScreen extends ConsumerWidget {
                     children: [
                       CircleAvatar(
                         backgroundColor: isIncome
-                            ? Colors.green.shade100
-                            : Colors.red.shade100,
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : Theme.of(context).colorScheme.errorContainer,
                         child: Icon(
                           isIncome
                               ? Icons.arrow_upward
@@ -272,21 +272,21 @@ class TransactionDetailScreen extends ConsumerWidget {
                 height: 240,
                 width: double.infinity,
                 fit: BoxFit.contain,
-                errorBuilder: (_, error, __) {
+                errorBuilder: (_, error, _) {
                   debugPrint('Image.file error: $error');
                   return Container(
                     height: 80,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.broken_image, color: Colors.grey.shade400),
+                        Icon(Icons.broken_image, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         const SizedBox(width: 8),
                         Text('Screenshot unavailable',
-                            style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13)),
                       ],
                     ),
                   );
@@ -348,7 +348,7 @@ class FullScreenImage extends StatelessWidget {
                 child: Image.file(
                   File(path),
                   fit: BoxFit.contain,
-                  errorBuilder: (_, error, __) {
+                  errorBuilder: (_, error, _) {
                     debugPrint('FullScreenImage error: $error');
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.center,

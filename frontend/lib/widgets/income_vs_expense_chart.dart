@@ -69,7 +69,7 @@ class IncomeVsExpenseChart extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
                               monthIdx > 0 && monthIdx <= 12 ? _months[monthIdx] : recent[i].period,
-                              style: const TextStyle(fontSize: 10),
+                              style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
                             ),
                           );
                         },
@@ -82,7 +82,7 @@ class IncomeVsExpenseChart extends StatelessWidget {
                         getTitlesWidget: (value, meta) {
                           return Text(
                             NumberFormat.compact().format(value),
-                            style: const TextStyle(fontSize: 10),
+                            style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
                           );
                         },
                       ),
@@ -94,6 +94,10 @@ class IncomeVsExpenseChart extends StatelessWidget {
                     show: true,
                     drawVerticalLine: false,
                     horizontalInterval: maxVal * 1.2 / 4,
+                    getDrawingHorizontalLine: (value) => FlLine(
+                      color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                      strokeWidth: 1,
+                    ),
                   ),
                   borderData: FlBorderData(show: false),
                   barGroups: List.generate(recent.length, (i) {

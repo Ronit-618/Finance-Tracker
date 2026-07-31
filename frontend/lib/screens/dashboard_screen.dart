@@ -164,7 +164,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
   Widget _summaryItem(String label, double amount, Color color) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey)),
+        Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         const SizedBox(height: 4),
         Text(
           NumberFormat.currency(symbol: 'Rs. ').format(amount),
@@ -195,7 +195,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
                 value: group.totalIncome + group.totalExpense > 0
                     ? group.totalIncome / (group.totalIncome + group.totalExpense)
                     : 0.5,
-                backgroundColor: Colors.red.shade100,
+                backgroundColor: Theme.of(context).colorScheme.errorContainer,
                 color: Colors.green,
                 minHeight: 8,
               ),

@@ -115,8 +115,8 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
         child: ListTile(
           leading: CircleAvatar(
             backgroundColor: isIncome
-                ? Colors.green.shade100
-                : Colors.red.shade100,
+                ? Theme.of(context).colorScheme.primaryContainer
+                : Theme.of(context).colorScheme.errorContainer,
             child: Icon(
               isIncome ? Icons.arrow_upward : Icons.arrow_downward,
               color: isIncome ? Colors.green : Colors.red,
@@ -125,8 +125,19 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
           title: Text(entry.description),
           subtitle: Row(
             children: [
-              DateDisplay(entry: entry),
-              Text('  •  ${_catName(entry.category)}'),
+              Expanded(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: DateDisplay(entry: entry, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                    Flexible(
+                      child: Text('  •  ${_catName(entry.category)}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
           trailing: Text(

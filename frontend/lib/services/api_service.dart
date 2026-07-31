@@ -18,6 +18,8 @@ class ApiService {
     int? category,
     int? type,
     int? paymentType,
+    int? bsYear,
+    int? bsMonth,
   }) async {
     final params = <String, String>{};
     if (from != null) params['from'] = from.toIso8601String().split('T')[0];
@@ -25,6 +27,8 @@ class ApiService {
     if (category != null) params['category'] = category.toString();
     if (type != null) params['type'] = type.toString();
     if (paymentType != null) params['paymentType'] = paymentType.toString();
+    if (bsYear != null) params['bsYear'] = bsYear.toString();
+    if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
 
     final uri = Uri.parse('$baseUrl/api/Entry').replace(queryParameters: params.isNotEmpty ? params : null);
     final res = await http.get(uri);
@@ -88,8 +92,15 @@ class ApiService {
     return EntrySummary.fromJson(jsonDecode(res.body));
   }
 
-  Future<TrialBalanceResponse> getTrialBalance({required int year, required int month}) async {
-    final uri = Uri.parse('$baseUrl/api/Entry/trial-balance?year=$year&month=$month');
+  Future<TrialBalanceResponse> getTrialBalance({int? year, int? month, int? bsYear, int? bsMonth}) async {
+    final params = <String, String>{};
+    if (year != null && month != null) {
+      params['year'] = year.toString();
+      params['month'] = month.toString();
+    }
+    if (bsYear != null) params['bsYear'] = bsYear.toString();
+    if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
+    final uri = Uri.parse('$baseUrl/api/Entry/trial-balance').replace(queryParameters: params.isNotEmpty ? params : null);
     final res = await http.get(uri);
     if (res.statusCode != 200) throw Exception('Failed to load trial balance');
     return TrialBalanceResponse.fromJson(jsonDecode(res.body));

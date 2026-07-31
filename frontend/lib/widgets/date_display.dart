@@ -23,11 +23,13 @@ String formatDateShort(WidgetRef ref, Entry entry) {
 class DateDisplay extends ConsumerWidget {
   final Entry entry;
   final TextStyle? style;
+  final int? maxLines;
+  final TextOverflow? overflow;
 
-  const DateDisplay({super.key, required this.entry, this.style});
+  const DateDisplay({super.key, required this.entry, this.style, this.maxLines, this.overflow});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Text(formatDate(ref, entry), style: style);
+    return Text(formatDate(ref, entry), style: style, maxLines: maxLines, overflow: overflow);
   }
 }
