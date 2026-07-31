@@ -6,6 +6,7 @@ import '../models/pending_store.dart';
 import '../providers/drawer_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/date_display.dart';
 import 'transaction_detail_screen.dart';
 
 class EntryListScreen extends ConsumerStatefulWidget {
@@ -74,9 +75,12 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
-            child: CircleAvatar(
-              radius: 22,
-              backgroundImage: AssetImage('assets/images/logoST.png'),
+            child: GestureDetector(
+              onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false),
+              child: CircleAvatar(
+                radius: 22,
+                backgroundImage: AssetImage('assets/images/logoST.png'),
+              ),
             ),
           ),
         ],
@@ -111,16 +115,30 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
         child: ListTile(
           leading: CircleAvatar(
             backgroundColor: isIncome
-                ? Colors.green.shade100
-                : Colors.red.shade100,
+                ? Theme.of(context).colorScheme.primaryContainer
+                : Theme.of(context).colorScheme.errorContainer,
             child: Icon(
               isIncome ? Icons.arrow_upward : Icons.arrow_downward,
               color: isIncome ? Colors.green : Colors.red,
             ),
           ),
           title: Text(entry.description),
-          subtitle: Text(
-            '${DateFormat('MMM dd, yyyy').format(entry.date)}  •  ${_catName(entry.category)}',
+          subtitle: Row(
+            children: [
+              Expanded(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: DateDisplay(entry: entry, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                    Flexible(
+                      child: Text('  •  ${_catName(entry.category)}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           trailing: Text(
             '${isIncome ? '+' : '-'}${NumberFormat.currency(symbol: 'Rs. ').format(entry.amount)}',

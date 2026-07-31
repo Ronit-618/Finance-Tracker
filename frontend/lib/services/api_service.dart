@@ -3,7 +3,9 @@ import 'dart:developer' as dev;
 import 'package:http/http.dart' as http;
 import '../models/entry.dart';
 import '../models/entry_summary.dart';
+import '../models/category_total.dart';
 import '../models/entry_group.dart';
+import '../models/trial_balance_item.dart';
 
 class ApiService {
   final String baseUrl;
@@ -16,6 +18,8 @@ class ApiService {
     int? category,
     int? type,
     int? paymentType,
+    int? bsYear,
+    int? bsMonth,
   }) async {
     final params = <String, String>{};
     if (from != null) params['from'] = from.toIso8601String().split('T')[0];
@@ -23,6 +27,8 @@ class ApiService {
     if (category != null) params['category'] = category.toString();
     if (type != null) params['type'] = type.toString();
     if (paymentType != null) params['paymentType'] = paymentType.toString();
+    if (bsYear != null) params['bsYear'] = bsYear.toString();
+    if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
 
     final uri = Uri.parse('$baseUrl/api/Entry').replace(queryParameters: params.isNotEmpty ? params : null);
     final res = await http.get(uri);
@@ -84,6 +90,31 @@ class ApiService {
     final res = await http.get(uri);
     if (res.statusCode != 200) throw Exception('Failed to load summary');
     return EntrySummary.fromJson(jsonDecode(res.body));
+  }
+
+  Future<TrialBalanceResponse> getTrialBalance({int? year, int? month, int? bsYear, int? bsMonth}) async {
+    final params = <String, String>{};
+    if (year != null && month != null) {
+      params['year'] = year.toString();
+      params['month'] = month.toString();
+    }
+    if (bsYear != null) params['bsYear'] = bsYear.toString();
+    if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
+    final uri = Uri.parse('$baseUrl/api/Entry/trial-balance').replace(queryParameters: params.isNotEmpty ? params : null);
+    final res = await http.get(uri);
+    if (res.statusCode != 200) throw Exception('Failed to load trial balance');
+    return TrialBalanceResponse.fromJson(jsonDecode(res.body));
+  }
+
+  Future<List<CategoryTotal>> getCategoryTotals({int? type}) async {
+    final params = <String, String>{};
+    if (type != null) params['type'] = type.toString();
+
+    final uri = Uri.parse('$baseUrl/api/Entry/by-category').replace(queryParameters: params.isNotEmpty ? params : null);
+    final res = await http.get(uri);
+    if (res.statusCode != 200) throw Exception('Failed to load category totals');
+    final List<dynamic> data = jsonDecode(res.body);
+    return data.map((e) => CategoryTotal.fromJson(e)).toList();
   }
 
   Future<List<EntryGroup>> getGrouped({

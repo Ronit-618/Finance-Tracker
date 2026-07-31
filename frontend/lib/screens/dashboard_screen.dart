@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../main.dart' show routeObserver;
+import '../models/category_total.dart';
 import '../models/entry_group.dart';
 import '../models/entry_summary.dart';
 import '../models/pending_store.dart';
 import '../providers/drawer_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/savings_chart.dart';
+import '../widgets/expense_category_chart.dart';
+import '../widgets/income_vs_expense_chart.dart';
+import '../widgets/top_spending_list.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   final ApiService api;
@@ -16,9 +22,10 @@ class DashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAware {
   EntrySummary? _summary;
   List<EntryGroup> _monthlyGroups = [];
+  List<CategoryTotal> _categoryExpenses = [];
   bool _loading = true;
 
   @override
@@ -30,16 +37,38 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     _loadData();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    _loadData();
+  }
+
   Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
         widget.api.getSummary(),
         widget.api.getGrouped(period: 'month'),
+        widget.api.getCategoryTotals(type: 0),
       ]);
       setState(() {
         _summary = results[0] as EntrySummary;
         _monthlyGroups = results[1] as List<EntryGroup>;
+        _categoryExpenses = results[2] as List<CategoryTotal>;
         _loading = false;
       });
     } catch (e) {
@@ -60,9 +89,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
-            child: CircleAvatar(
-              radius: 22,
-              backgroundImage: AssetImage('assets/images/logoST.png'),
+            child: GestureDetector(
+              onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false),
+              child: CircleAvatar(
+                radius: 22,
+                backgroundImage: AssetImage('assets/images/logoST.png'),
+              ),
             ),
           ),
         ],
@@ -80,6 +112,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   Text('Monthly Trend', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
                   ..._monthlyGroups.reversed.take(6).map(_buildTrendRow),
+                  const SizedBox(height: 24),
+                  ExpenseCategoryChart(data: _categoryExpenses),
+                  const SizedBox(height: 16),
+                  IncomeVsExpenseChart(groups: _monthlyGroups),
+                  const SizedBox(height: 16),
+                  SavingsChart(groups: _monthlyGroups),
+                  const SizedBox(height: 16),
+                  TopSpendingList(data: _categoryExpenses),
                 ],
               ),
             ),
@@ -124,7 +164,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _summaryItem(String label, double amount, Color color) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey)),
+        Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         const SizedBox(height: 4),
         Text(
           NumberFormat.currency(symbol: 'Rs. ').format(amount),
@@ -155,7 +195,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 value: group.totalIncome + group.totalExpense > 0
                     ? group.totalIncome / (group.totalIncome + group.totalExpense)
                     : 0.5,
-                backgroundColor: Colors.red.shade100,
+                backgroundColor: Theme.of(context).colorScheme.errorContainer,
                 color: Colors.green,
                 minHeight: 8,
               ),

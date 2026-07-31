@@ -10,6 +10,7 @@ class Entry {
   final String? screenshotPath;
   final int isCompleted;
   final DateTime createdAt;
+  final String? bsDate;
 
   Entry({
     required this.id,
@@ -23,6 +24,7 @@ class Entry {
     this.screenshotPath,
     required this.isCompleted,
     required this.createdAt,
+    this.bsDate,
   });
 
   factory Entry.fromJson(Map<String, dynamic> json) => Entry(
@@ -37,6 +39,7 @@ class Entry {
         screenshotPath: json['screenshotPath'] as String?,
         isCompleted: json['isCompleted'] as int? ?? 0,
         createdAt: DateTime.parse(json['createdAt'] as String),
+        bsDate: json['bsDate'] as String?,
       );
 
   Map<String, dynamic> toJson() => {

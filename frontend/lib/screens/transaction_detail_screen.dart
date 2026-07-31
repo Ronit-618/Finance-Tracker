@@ -1,14 +1,16 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/entry.dart';
+import '../providers/settings_providers.dart';
 import '../services/api_service.dart';
 import '../utils/snackbar_helper.dart';
 import 'entry_form_screen.dart';
 
-class TransactionDetailScreen extends StatelessWidget {
+class TransactionDetailScreen extends ConsumerWidget {
   final Entry entry;
   final ApiService api;
 
@@ -22,7 +24,7 @@ class TransactionDetailScreen extends StatelessWidget {
       const {0: 'PersonalPayment', 1: 'BillSharing', 2: 'Loan', 3: 'Income'}[c] ??
       'Unknown';
 
-  void _edit(BuildContext context) async {
+  void _edit(BuildContext context, WidgetRef ref) async {
     final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -79,7 +81,7 @@ class TransactionDetailScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final e = entry;
     final isIncome = e.type == 1;
 
@@ -90,7 +92,7 @@ class TransactionDetailScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit),
             tooltip: 'Edit',
-            onPressed: () => _edit(context),
+            onPressed: () => _edit(context, ref),
           ),
           IconButton(
             icon: const Icon(Icons.delete),
@@ -112,8 +114,8 @@ class TransactionDetailScreen extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         backgroundColor: isIncome
-                            ? Colors.green.shade100
-                            : Colors.red.shade100,
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : Theme.of(context).colorScheme.errorContainer,
                         child: Icon(
                           isIncome
                               ? Icons.arrow_upward
@@ -157,7 +159,10 @@ class TransactionDetailScreen extends StatelessWidget {
                   const Text('Details',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   const Divider(),
-                  _detailRow('Date', DateFormat('MMM dd, yyyy').format(e.date)),
+                  _detailRow('Date',
+                    ref.watch(dateFormatProvider) == DateFormatMode.bs && e.bsDate != null
+                        ? e.bsDate!
+                        : DateFormat('MMM dd, yyyy').format(e.date)),
                   _detailRow('Category', _catName(e.category)),
                   _detailRow('Type', isIncome ? 'Income' : 'Expense'),
                   _detailRow('Payment Type',
@@ -267,21 +272,21 @@ class TransactionDetailScreen extends StatelessWidget {
                 height: 240,
                 width: double.infinity,
                 fit: BoxFit.contain,
-                errorBuilder: (_, error, __) {
+                errorBuilder: (_, error, _) {
                   debugPrint('Image.file error: $error');
                   return Container(
                     height: 80,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.broken_image, color: Colors.grey.shade400),
+                        Icon(Icons.broken_image, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         const SizedBox(width: 8),
                         Text('Screenshot unavailable',
-                            style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13)),
                       ],
                     ),
                   );
@@ -343,7 +348,7 @@ class FullScreenImage extends StatelessWidget {
                 child: Image.file(
                   File(path),
                   fit: BoxFit.contain,
-                  errorBuilder: (_, error, __) {
+                  errorBuilder: (_, error, _) {
                     debugPrint('FullScreenImage error: $error');
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.center,

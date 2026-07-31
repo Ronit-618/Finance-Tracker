@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using FinanceTracker.Api.Data;
 using FinanceTracker.Api.Dtos;
 using FinanceTracker.Api.Models;
+using FinanceTracker.Api.Services;
 
 namespace FinanceTracker.Api.Controllers;
 
@@ -23,8 +24,17 @@ public class EntryController : ControllerBase
         [FromQuery] DateTime? to,
         [FromQuery] EntryCategory? category,
         [FromQuery] EntryType? type,
-        [FromQuery] PaymentType? paymentType)
+        [FromQuery] PaymentType? paymentType,
+        [FromQuery] int? bsYear,
+        [FromQuery] int? bsMonth)
     {
+        if (bsYear.HasValue && bsMonth.HasValue)
+        {
+            var (bsFrom, bsTo) = NepaliDateService.GetBsMonthAdRange(bsYear.Value, bsMonth.Value);
+            from = bsFrom;
+            to = bsTo;
+        }
+
         var query = FilterQuery(from, to, category, type, paymentType);
 
         var entries = await query
@@ -55,6 +65,76 @@ public class EntryController : ControllerBase
             Balance = entries.Where(e => e.Type == EntryType.Income).Sum(e => e.Amount)
                      - entries.Where(e => e.Type == EntryType.Expense).Sum(e => e.Amount)
         };
+    }
+
+    [HttpGet("trial-balance")]
+    public async Task<ActionResult<TrialBalanceResponse>> GetTrialBalance(
+        [FromQuery] int? year,
+        [FromQuery] int? month,
+        [FromQuery] int? bsYear,
+        [FromQuery] int? bsMonth)
+    {
+        if (bsYear.HasValue && bsMonth.HasValue)
+        {
+            var (bsFrom, bsTo) = NepaliDateService.GetBsMonthAdRange(bsYear.Value, bsMonth.Value);
+            return await GetTrialBalanceInternal(bsFrom, bsTo);
+        }
+
+        if (!year.HasValue || !month.HasValue)
+            return BadRequest("Provide either year+month or bsYear+bsMonth");
+
+        var adFrom = new DateTime(year.Value, month.Value, 1);
+        var adTo = adFrom.AddMonths(1).AddDays(-1);
+        return await GetTrialBalanceInternal(adFrom, adTo);
+    }
+
+    private async Task<ActionResult<TrialBalanceResponse>> GetTrialBalanceInternal(DateTime from, DateTime to)
+    {
+
+        var entries = await _db.Entries
+            .Where(e => e.Date >= from && e.Date <= to)
+            .ToListAsync();
+
+        var items = entries
+            .GroupBy(e => e.Category)
+            .Select(g => new TrialBalanceItem
+            {
+                Category = g.Key.ToString(),
+                DebitTotal = g.Where(e => e.PaymentType == PaymentType.Debit).Sum(e => e.Amount),
+                CreditTotal = g.Where(e => e.PaymentType == PaymentType.Credit).Sum(e => e.Amount)
+            })
+            .OrderBy(i => i.Category)
+            .ToList();
+
+        return new TrialBalanceResponse
+        {
+            TotalDebit = items.Sum(i => i.DebitTotal),
+            TotalCredit = items.Sum(i => i.CreditTotal),
+            Items = items
+        };
+    }
+
+    [HttpGet("by-category")]
+    public async Task<ActionResult<List<CategoryTotalResponse>>> GetByCategory(
+        [FromQuery] EntryType? type = null)
+    {
+        var query = _db.Entries.AsQueryable();
+
+        if (type.HasValue)
+            query = query.Where(e => e.Type == type.Value);
+
+        var result = await query
+            .GroupBy(e => e.Category)
+            .Select(g => new CategoryTotalResponse
+            {
+                Category = g.Key.ToString(),
+                Total = g.Sum(e => e.Amount),
+                EntryCount = g.Count()
+            })
+            .OrderByDescending(r => r.Total)
+            .ToListAsync();
+
+        return result;
     }
 
     [HttpGet("grouped")]
@@ -241,6 +321,7 @@ public class EntryController : ControllerBase
         Amount = e.Amount,
         ScreenshotPath = e.ScreenshotPath,
         IsCompleted = e.IsCompleted,
-        CreatedAt = e.CreatedAt
+        CreatedAt = e.CreatedAt,
+        BsDate = NepaliDateService.AdToBs(e.Date)
     };
 }

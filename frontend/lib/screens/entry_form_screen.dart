@@ -1,14 +1,17 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nepali_date_picker/nepali_date_picker.dart';
 import '../models/entry.dart';
+import '../providers/settings_providers.dart';
 import '../services/api_service.dart';
 import '../services/screenshot_service.dart';
 import '../models/pending_store.dart';
 import '../utils/snackbar_helper.dart';
 
-class EntryFormScreen extends StatefulWidget {
+class EntryFormScreen extends ConsumerStatefulWidget {
   final ApiService api;
   final Entry? entry;
   final dynamic pendingCapture;
@@ -21,10 +24,10 @@ class EntryFormScreen extends StatefulWidget {
   });
 
   @override
-  State<EntryFormScreen> createState() => _EntryFormScreenState();
+  ConsumerState<EntryFormScreen> createState() => _EntryFormScreenState();
 }
 
-class _EntryFormScreenState extends State<EntryFormScreen> {
+class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _descCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
@@ -191,19 +194,33 @@ late int _category;
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.calendar_today),
-              title: Text(DateFormat('MMM dd, yyyy').format(_date)),
+              title: Text(
+                ref.watch(dateFormatProvider) == DateFormatMode.bs
+                    ? _date.toNepaliDateTime().format('MMM dd, yyyy')
+                    : DateFormat('MMM dd, yyyy').format(_date)),
+
               trailing: const Icon(Icons.edit),
               enabled: !_isEditing,
               onTap: _isEditing
                   ? null
                   : () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _date,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2030),
-                      );
-                      if (picked != null) setState(() => _date = picked);
+                      if (ref.read(dateFormatProvider) == DateFormatMode.bs) {
+                        final picked = await showMaterialDatePicker(
+                          context: context,
+                          firstDate: NepaliDateTime(2055, 1, 1),
+                          lastDate: NepaliDateTime(2090, 12, 30),
+                          initialDate: _date.toNepaliDateTime(),
+                        );
+                        if (picked != null) setState(() => _date = picked.toDateTime());
+                      } else {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _date,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                        );
+                        if (picked != null) setState(() => _date = picked);
+                      }
                     },
             ),
             if (widget.pendingCapture != null) ...[

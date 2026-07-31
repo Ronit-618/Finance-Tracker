@@ -281,7 +281,95 @@ Notes:
   - **Fix:** Both widgets now check `Permission.manageExternalStorage.isGranted` before attempting `Image.file()`. If not granted, they show a tappable prompt ("Tap to grant file access to view screenshot") that requests the permission and rebuilds on grant via `StatefulBuilder.setInnerState`.
   - Added `debugPrint` inside `errorBuilder` on both widgets for future diagnostics.
   - JSON mapping confirmed correct: backend `ScreenshotPath` (PascalCase) → ASP.NET Core camelCase serialization → `screenshotPath` → frontend `json['screenshotPath'] as String?` — no mismatch.
-  - File path round-trip confirmed correct: full `/storage/emulated/0/FinanceTracker/Transaction/Screenshot/...` path is stored, returned, and passed to `Image.file()`.
+     - File path round-trip confirmed correct: full `/storage/emulated/0/FinanceTracker/Transaction/Screenshot/...` path is stored, returned, and passed to `Image.file()`.
+- ✅ **30. Dashboard visualizations (4 charts)** — Done on 2026-07-29.
+  - Added `fl_chart` (`^0.70.2`) dependency to `pubspec.yaml`.
+  - **Backend:** New `GET /api/Entry/by-category?type=0` endpoint in `EntriesController.cs`, backed by new `CategoryTotalResponse` DTO. Returns expense totals grouped by category, ordered descending.
+  - **Frontend model:** `models/category_total.dart` — mirrors the backend DTO.
+  - **ApiService:** Added `getCategoryTotals({int? type})` method.
+  - **4 chart widgets** created under `widgets/`:
+    1. `expense_category_chart.dart` — Pie/donut chart with legend, one slice per category with distinct colors and percentage labels.
+    2. `income_vs_expense_chart.dart` — Grouped bar chart showing last 6 months of Income (green) vs Expense (red) bars side-by-side, with month labels and compact Y-axis formatting.
+    3. `balance_trend_chart.dart` — Smooth line chart with shaded area, plotting cumulative running balance across all monthly periods.
+    4. `top_spending_list.dart` — Ranked horizontal list of top 5 expense categories with proportional progress bars and Rs. amounts.
+  - Each chart in its own Card with matching elevation/padding and empty-state fallback ("No data yet").
+  - Dashboard loads all 4 sections alongside existing summary card and monthly trend; `RefreshIndicator` reloads all data.
+  - Builds with 0 errors on both frontend (flutter analyze) and backend (dotnet build).
+- ✅ **30b. Chart layout fixes + Savings chart + auto-refresh** — Done on 2026-07-29.
+  - **Expense by Category (pie chart):** Fixed layout — pie chart now centered in a contained 160×160 box (no overflow), legend moved to bottom-right via `Align` + `Wrap` (no overlap with circle), amounts removed from labels (shows `CategoryName (XX.X%)` only).
+  - **Balance Trend removed** — replaced with **Savings chart** (`widgets/savings_chart.dart`): bar chart showing savings (`Income - Expense`) per month for the last 6 months, positive bars green, negative bars red.
+  - **Dynamic auto-refresh:** Added `RouteObserver` + `RouteAware` mixin to `DashboardScreen` — `didPopNext()` calls `_loadData()` whenever the user navigates back to Dashboard, so all cards/charts reflect the latest data after any add/edit/delete on other screens.
+  - **Logo home button:** Tapping the `CircleAvatar` logo in the AppBar (Dashboard, Pending, Transactions screens) now calls `Navigator.pushNamedAndRemoveUntil` to `/dashboard`, acting as a home button that always returns to the root page.
+- ✅ **31. Reports screen (Trial Balance + Monthly Transactions)** — Done on 2026-07-29.
+  - **Backend:** New DTOs `TrialBalanceItem` / `TrialBalanceResponse` in `backend/Dtos/TrialBalanceResponse.cs`. New endpoint `GET /api/Entry/trial-balance?year=2026&month=7` in `EntriesController.cs` — filters Entries by year/month, groups by Category, sums Debit vs Credit amounts per category, returns items + totalDebit/totalCredit summary.
+  - **Drawer:** Added `reports` to `DrawerDestination` enum (`drawer_provider.dart`). Added "Reports" `ListTile` with `Icons.description` in `app_drawer.dart` with the same navigation pattern (popUntil-dashboard-then-pushReplacement for top-level pages). Back-button from Reports returns to Dashboard.
+  - **Routing:** Added `/reports` route in `main.dart` pointing to `ReportsScreen`.
+  - **`ReportsScreen`** (`screens/reports_screen.dart`):
+    - Month/Year picker via two `DropdownButton`s (Month dropdown shows full month names, Year dropdown covers a 5-year window), defaults to current month/year.
+    - `TabBar` with two tabs: "Trial Balance" and "Transactions".
+    - **Trial Balance tab:** Bordered `Table` widget with `Account Name | Debit | Credit` header row, each category as a row (blank cell if zero), thick 2px top border before the Totals row showing `TotalDebit` / `TotalCredit`. Title "Trial Balance" with subtitle "For the month of July 2026". Currency formatted as `Rs. X,XXX.00`. Shows "No data for this month" if empty.
+    - **Transactions tab:** Reuses the same entry tile style as `EntryListScreen` (icon circle, description, date, category, signed colored amount). Double-tap opens `TransactionDetailScreen` via `Navigator.push`. Shows "No transactions this month" if empty.
+  - **Frontend model + API:** Created `models/trial_balance_item.dart` with `TrialBalanceItem` and `TrialBalanceResponse` classes. Added `getTrialBalance(year, month)` to `ApiService`.
+  - Builds with 0 errors (flutter analyze, dotnet build).
+- ✅ **32. Bikram Sambat (BS) / Nepali calendar support** — Done on 2026-07-29.
+  - **Package:** Added `BSDateConverter` v1.3.0 NuGet package. Inspected actual API via reflection — `DateConverter` static class with methods: `ConvertADToBS(string)` (AD→BS "YYYY-MM-DD"), `ConvertBSToAD(string)` (BS→AD "YYYY-MM-DD"), `ConvertToBSWithName(string)` ("13 Shrawan 2083"), `ConvertToADWithName(string)` ("31 July 2026"), `GetTodayDateAD()`, `GetTodayDateBS()`.
+  - **`Services/NepaliDateService.cs`** — static helper wrapping `DateConverter`:
+    - `AdToBs(DateTime)` → formatted BS string (e.g. "13 Shrawan 2083")
+    - `AdToBsShort(DateTime)` → "YYYY-MM-DD" BS string
+    - `BsToAd(int bsYear, int bsMonth, int bsDay)` → AD DateTime
+    - `GetBsMonthAdRange(int bsYear, int bsMonth)` → (AD start, AD end) tuple for a BS month
+  - **`EntryResponse` DTO** — added `string? BsDate` field, populated by `NepaliDateService.AdToBs(e.Date)` in `MapToResponse()`.
+  - **`GET /api/Entry/trial-balance`** — now accepts optional `bsYear`/`bsMonth` query params alongside existing `year`/`month`. Converts BS month range to AD internally via `GetBsMonthAdRange()`, then reuses the same grouping logic.
+  - **`GET /api/Entry`** — added optional `bsYear`/`bsMonth` params; computes AD `from`/`to` range before filtering.
+  - AD-based params (`year`/`month`, `from`/`to`) continue working exactly as before — purely additive.
+  - Verified conversion: AD 2026-07-29 → BS 2083-04-13 ("13 Shrawan 2083"). BS 2083-4 range → AD 2026-07-17 to 2026-08-16.
+  - Builds with 0 errors (dotnet build + flutter analyze).
+- ✅ **33. Settings screen + theme toggle + AD/BS date format toggle** — Done on 2026-07-29.
+  - **Dependencies:** Added `shared_preferences ^2.3.0`, `nepali_date_picker ^6.0.2`.
+  - **Providers** (`providers/settings_providers.dart`):
+    - `DateFormatMode` enum (`ad`, `bs`), `DateFormatNotifier` (persists to `SharedPreferences` key `dateFormat`).
+    - `ThemeModeNotifier` (persists to `SharedPreferences` key `themeMode`).
+    - `dateFormatProvider` / `themeModeProvider` expose these as `StateNotifierProvider`s.
+  - **`Entry` model:** Added `String? bsDate` field parsed from backend JSON.
+  - **`DateDisplay` helper** (`widgets/date_display.dart`): `formatDate(WidgetRef, Entry)` returns BS formatted date (`entry.bsDate`) when mode is `bs`, or AD `DateFormat('MMM dd, yyyy')` otherwise. `DateDisplay` ConsumerWidget widget for drop-in replacement.
+  - **`SettingsScreen`** (`screens/settings_screen.dart`): Drawer-linked top-level page with two `SwitchListTile`s: Date Format (AD/BS) and Theme (Light/Dark). Both toggle immediately via Riverpod state.
+  - **`main.dart`**: `MyApp` changed to `ConsumerWidget` — reads `themeModeProvider` and sets `MaterialApp.themeMode`, `theme` (light), `darkTheme` (dark using same seed color). Added `/settings` route.
+  - **Drawer:** Added `settings` to `DrawerDestination` enum, "Settings" ListTile with `Icons.settings` in `app_drawer.dart`, route-aware navigation.
+  - **BS date picker:** Entry Form's date picker shows `showMaterialDatePicker` (Nepali calendar) when BS mode is active, converting via `_date.toNepaliDateTime()` / `picked.toDateTime()`.
+  - **Date format applied app-wide** in:
+    - `entry_list_screen.dart` — transaction tiles use `DateDisplay`
+    - `reports_screen.dart` — transaction tiles use `DateDisplay`
+    - `transaction_detail_screen.dart` — detail Date row reads `dateFormatProvider`
+    - `entry_form_screen.dart` — date label shows BS formatted via `NepaliDateTime.format()`
+  - Settings persist across app restarts via `SharedPreferences`.
+  - Builds with 0 errors (flutter analyze).
+- ✅ **34. Bug fix: transaction tile subtitle overflow with BS dates** — Done on 2026-07-29.
+  - **Root cause:** The subtitle `Row` (`DateDisplay` + `  •  CategoryName`) had no `Expanded`/`Flexible` wrapping — both child `Text` widgets took their intrinsic width. BS mode dates (e.g. "13 Shrawan 2083") are longer than AD dates ("Jul 28, 2026"), overflowing into the fixed-width `trailing` amount column.
+  - **Fix:** Wrapped text children in `Expanded` → inner `Row` with `Flexible` around each child, with `maxLines: 1` and `TextOverflow.ellipsis`. Also added `maxLines`/`overflow` params to `DateDisplay` widget.
+  - **Files changed:** `widgets/date_display.dart`, `screens/entry_list_screen.dart`, `screens/reports_screen.dart`.
+  - **Other screens verified safe:** `TransactionDetailScreen` uses `_detailRow` with `Expanded` for value; Dashboard/Pending don't render entry dates in constrained Rows.
+  - Builds with 0 errors (flutter analyze).
+- ✅ **35. Bug fix: Reports month/year selector respects BS mode** — Done on 2026-07-31.
+  - **Root cause (two bugs):** (1) `_year`/`_month` in `ReportsScreen` were AD values reused for both modes, so in BS mode the dropdowns showed an AD year (not in the BS-year items list — Flutter `DropdownButton` asserts) against BS month names, i.e. a mismatched/stale period. (2) `_isBs` read `dateFormatProvider` with `ref.read` only — the screen never rebuilt and never refetched when the app-wide AD/BS toggle changed while Reports was open.
+  - **Fix:** The screen now keeps the selected period in **both** calendars — `_adYear/_adMonth` and `_bsYear/_bsMonth` — kept in sync on every pick via `nepali_utils` conversion (`DateTime(...).toNepaliDateTime()` ↔ `NepaliDateTime(...).toDateTime()`), so switching modes never resets to today; the selector shows the equivalent period in the other calendar.
+  - **AD mode:** unchanged two-dropdown picker (month names + a year dropdown). The AD year dropdown is now derived from the BS picker range (`NepaliDateTime(bsMin,1,1).toDateTime().year` … `NepaliDateTime(bsMax,12,30).toDateTime().year`) so the converted equivalent AD year is always a valid dropdown item.
+  - **BS mode:** replaced the dropdowns with a tappable "BS Month: <Month> <Year>" field that opens `showMaterialDatePicker` (the exact Nepali calendar widget the Entry Form's date field uses) — no new picker was built. `initialDate` is clamped into the picker's range to guard the boundary case where an AD pick maps to a BS month just outside it. Selected `year`/`month` drive the data fetch directly.
+  - **Mode-change handling:** `build` now does `ref.watch(dateFormatProvider)` (selector + subtitle rebuild on toggle) and `initState` registers `ref.listen(dateFormatProvider, ...)` which calls `_loadData()` so both tabs refetch with the active mode's params.
+  - **Data-fetch params confirmed:** BS mode sends `bsYear`/`bsMonth` to both `getTrialBalance()` and `getEntries()` (backend `GET /api/Entry` and `trial-balance` both compute the AD range from `bsYear/bsMonth`); AD mode sends `year`/`month` to trial-balance and AD `from`/`to` to `GET /api/Entry`. The selector's picked value is exactly what is sent — no stale values.
+  - **Files changed:** `screens/reports_screen.dart`.
+  - Builds with 0 errors (flutter analyze); conversion sanity tests pass (AD↔BS round-trip, dropdown bounds, picker clamp).
+- ✅ **36. Bug fix: Trial Balance table + Dashboard charts readable in dark mode** — Done on 2026-07-31.
+  - **Trial Balance table (primary target):** replaced all hardcoded light-mode colors with theme tokens —
+    - Cell/header text: `Theme.of(context).colorScheme.onSurface` (was `Colors.black`).
+    - Header row background: `colorScheme.surfaceContainerHighest` (subtle shade distinct from body rows; was `Colors.grey.shade100`).
+    - Regular row borders: `colorScheme.outline`, with alpha dropped to 0.6 in dark mode so the grid doesn't look harsh (was `Colors.grey.shade400`/black).
+    - Totals row thick divider: kept 2px `BorderSide(color: colorScheme.onSurface)` — full-opacity `onSurface` gives higher contrast than the regular dividers, so the totals row stays visually distinct in both light and dark mode.
+    - Empty state + subtitle text: `colorScheme.onSurfaceVariant` (was `Colors.grey.shade600`).
+  - **Reports Transactions tab:** income/expense icon + amount colors are now brightness-aware — `Colors.green`/`Colors.red` in light mode, `Colors.green.shade400`/`Colors.red.shade400` in dark mode so they stay legible against a dark card (same green/red scheme used app-wide, no new colors).
+  - **Dashboard charts (checked while in the area):** summary label `Colors.grey` → `colorScheme.onSurfaceVariant`; Monthly Trend track `Colors.red.shade100` → `colorScheme.errorContainer` (keeps the red expense tint, dark-friendly); `IncomeVsExpenseChart` and `SavingsChart` axis labels now use `colorScheme.onSurfaceVariant` and gridlines use `colorScheme.outlineVariant` (alpha 0.5) instead of fl_chart's light-grey defaults; `TopSpendingList` progress track `Colors.grey.shade200` → `colorScheme.surfaceContainerHighest`.
+  - **Also fixed:** `transaction_detail_screen.dart` screenshot-placeholder used deprecated `colorScheme.surfaceVariant` → `surfaceContainerHighest` (resolves deprecation info).
+  - **Files changed:** `screens/reports_screen.dart`, `screens/dashboard_screen.dart`, `screens/transaction_detail_screen.dart`, `widgets/income_vs_expense_chart.dart`, `widgets/savings_chart.dart`, `widgets/top_spending_list.dart`.
+  - Builds with 0 errors, 0 warnings (flutter analyze).
 
 ## 8. Frontend Flow (Flutter — Dart)
 
