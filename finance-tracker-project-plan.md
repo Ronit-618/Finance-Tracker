@@ -436,3 +436,135 @@ POST /api/Entry { description, amount, category, type, date, screenshotPath }
 - [ ] iOS support timeline, if any, and what the capture flow looks like there
 - [x] Whether Category's "Income" option should be filtered out when Type = Expense (and vice versa) to avoid contradictory Type/Category combinations in the Entry Form — **Resolved: implemented in Entry Form. When Type = Expense, only PersonalPayment/BillSharing/Loan shown; when Type = Income, only Income category shown.**
 - [ ] Screenshot storage currently uses `MANAGE_EXTERNAL_STORAGE` ("All files access") to write to a public folder (`/storage/emulated/0/FinanceTracker/Transaction/Screenshot/`). This is acceptable for a personal/sideloaded app but is **not** Play Store–friendly — Google typically rejects this permission for this use case in favor of the MediaStore API or Storage Access Framework (SAF). Revisit this before any Play Store release.
+
+---
+
+## 10. Deploy Backend to Render + Neon (Step-by-Step Plan)
+
+**Instructions for the agent:** Work through these steps in order, one at a time. Before starting each step, tell the user exactly what you are about to do and why. After completing each step, show the user what changed (files touched, commands run, output) and **wait for explicit confirmation before moving to the next step.** Do not skip ahead or batch multiple steps together, even if the fix seems obvious.
+
+**Rollback rule (applies to every step):** Before making any change, note what the previous working state was (e.g., "last known good": SQL Server LocalDB provider, current commit hash, current file contents). If a step fails, produces unexpected output, or the user says it's wrong, **immediately revert that step's changes back to the last known good state** (`git checkout`/`git revert` for code, undo the specific config/env var change on Render or Neon's dashboard) before reporting back. Do not attempt a fix-forward patch on top of a broken step unless the user explicitly asks for one. Confirm with the user that the revert is complete and the app is back to its last working state, then wait for their instruction on how to proceed — do not automatically retry the step.
+
+Context: ASP.NET Core Web API backend (currently using SQL Server LocalDB) + Flutter frontend. Deploying backend web service to **Render** (free tier) and the database to **Neon** (free tier Postgres with no expiry date — this must remain running permanently, not a 30-day trial). Single user only — no multi-user auth needed, just a simple API key gate. CI/CD via GitHub Actions already exists (main branch → Render deploy).
+
+**Why Neon instead of Render Postgres:** Render's own free Postgres database expires 30 days after creation and is deleted after a 14-day grace period unless upgraded to paid. Since this app needs to run indefinitely with real data, the database must live on a provider with a genuinely permanent free tier. Neon fits that — Render still hosts the API/web service, only the database connection string points to Neon.
+
+---
+
+**STATUS: Steps 1-3 are already complete** (EF Core provider swapped from SQL Server to PostgreSQL, and the initial Postgres migration has been generated). Do not redo them. Before resuming at Step 4, first do a quick sanity check: confirm the current build still compiles clean, confirm the Step 2/3 commit is the current rollback point going forward, and confirm no real (non-placeholder) connection string or credentials were accidentally committed during steps 1-3. Report the sanity check result to the user, then proceed to Step 4.
+
+### Step 1 — Audit current data layer *(completed)*
+- Find every place `UseSqlServer` is referenced (likely `Program.cs`/`Startup.cs` and `DbContext` configuration).
+- List all existing EF Core migrations.
+- Note the current commit hash as the rollback point for this whole migration effort.
+- Report findings to the user before touching anything.
+- **Ask the user:** "Confirmed — here's what I found using SQL Server, and I've noted commit `<hash>` as our rollback point. Should I proceed with swapping to PostgreSQL?"
+- **Result:** Found `UseSqlServer` in `Program.cs:9`, `Microsoft.EntityFrameworkCore.SqlServer` v10.0.10 in `.csproj`, connection string in `appsettings.json`. 8 SQL Server migrations in `Migrations/`. User approved proceed.
+
+### Step 2 — Swap EF Core provider to PostgreSQL *(completed)*
+- Remove `Microsoft.EntityFrameworkCore.SqlServer` NuGet package.
+- Add `Npgsql.EntityFrameworkCore.PostgreSQL` NuGet package.
+- Change `UseSqlServer(...)` to `UseNpgsql(...)` in the DbContext configuration.
+- Use a placeholder connection string for now — no real credentials yet.
+- Build the project to confirm it compiles.
+- **If the build fails:** revert the package changes and code edit back to the Step 1 commit hash, report the exact build error, and stop.
+- **Ask the user:** "Provider swapped and build succeeds. Do you want me to regenerate migrations now, or review the diff first?"
+- **Result:** Swapped `.csproj` package to `Npgsql.EntityFrameworkCore.PostgreSQL` v10.0.3 (latest stable; 10.0.10 doesn't exist for Npgsql). Changed `UseNpgsql(...)` in `Program.cs`. Updated `appsettings.json` connection string to `Host=localhost;Database=FinanceTracker;Username=postgres;Password=placeholder`. `dotnet restore` succeeded.
+
+### Step 3 — Regenerate migrations for Postgres *(completed)*
+- Confirm with the user: fresh migration history vs. keeping old SQL-Server migrations for reference.
+- Run `dotnet ef migrations add InitialPostgresMigration`.
+- Do **not** apply it to any live database yet.
+- **If migration generation errors out:** delete the partially-generated migration files and revert to the state after Step 2, report the error, and stop.
+- **Ask the user:** "Migration generated. Should I test this locally against a local Postgres instance before we touch Neon?"
+- **Result:** Deleted entire `Migrations/` folder (old SQL Server migrations cannot coexist — they reference `SqlServerModelBuilderExtensions` which no longer exists). Ran `dotnet ef migrations add InitialPostgresMigration` — generated 3 files: `.cs`, `.Designer.cs`, `AppDbContextModelSnapshot.cs`. `dotnet build` succeeded with 0 errors, 0 warnings.
+
+### Step 4 — Create Neon DB + .env + apply migration (⚠️ Manual — user must do this)
+- Guide the user through creating a **free Neon project** at neon.tech (this requires the user to click through Neon's UI — the agent cannot do this itself).
+- Confirm with the user that this is Neon (not Render's built-in Postgres) — this is the piece that must not expire.
+- Have the user paste the Neon connection string, to be stored only as a `.env` file, never hardcoded in source.
+- Update app configuration to read from the environment variable at runtime.
+- Run `dotnet ef database update` against Neon to apply the migration.
+- **Ask the user:** "Schema applied and verified on Neon. Ready to move on to the API key security step?"
+
+**4a. Manual — Create Neon project:**
+1. Go to [neon.tech](https://neon.tech) → sign up / log in (GitHub sign-in is easiest).
+2. Click **Create Project**.
+3. **Project name:** `finance-tracker` (or anything you like).
+4. **Database name:** `financetracker` (or leave default).
+5. **Region:** closest to you (e.g. US East for Americas, Singapore for Asia).
+6. **Plan:** leave on **Free** (0.5 GB storage, no expiry — this is permanent).
+7. Click **Create Project**.
+8. Once created, Neon shows a **Connection Details** modal. Select **Pooled connection** → **URL** format.
+9. Copy the full connection string — it looks like:
+   `postgresql://neondb_owner:ABC123@ep-xxxxx.us-east-2.aws.neon.tech/financetracker?sslmode=require`
+10. **Reset the password** first (Neon dashboard → Users → reset password) so you have a known password, then copy the updated pooled connection string.
+11. Paste the connection string here (the agent will write it into `.env`).
+12. **Important:** Neon's connection string requires `sslmode=require` — make sure it's included.
+
+**4b. Agent — Create `.env` file and update config:**
+- Add a `.env` file in `backend/` root with:
+  ```
+  DATABASE_URL="<paste the pooled connection string here>"
+  ```
+- Confirm `.env` is in `.gitignore` and has never been committed to git history.
+- Update `Program.cs` / `AppDbContext` to read the connection string from `Environment.GetEnvironmentVariable("DATABASE_URL")` (or `IConfiguration` with `DotNetEnv` / manual env loading), falling back to the placeholder in `appsettings.json` for local dev.
+- Update `appsettings.json` to keep the placeholder as fallback (so local dev still works without `.env`).
+- **Result:** `.env` created at `backend/.env` with a placeholder `DATABASE_URL` (gitignored, never committed — confirmed via `git ls-files`). Added `DotNetEnv` v3.2.0 NuGet package. Updated `Program.cs` to call `DotNetEnv.Env.TraversePath().Load()` then read `Environment.GetEnvironmentVariable("DATABASE_URL")` with fallback to `appsettings.json` `DefaultConnection` placeholder. `dotnet restore` + `dotnet build` succeeded (0 errors, 0 warnings). `.env.*` was already in `.gitignore` (lines 44-45). No `DATABASE_URL`/`neon`/`sslmode` strings exist in git history.
+
+**4c. Agent — Apply migration to Neon:**
+- Run `dotnet ef database update` using the Neon connection string.
+- Verify tables (Entries, Bills, Transactions) were created correctly by querying Neon directly or checking migration output.
+- **If the migration fails partway:** run `dotnet ef database update 0` to roll the Neon database back to empty, delete the bad migration if it was malformed, and report the exact error before proceeding.
+- **Result:** Migration `20260831113324_InitialPostgresMigration` applied successfully to Neon. Created `Entries`, `Bills`, `Transactions` tables (with FKs, indexes, `numeric(18,2)` amounts, `timestamp with time zone` dates) plus `__EFMigrationsHistory`. Verified directly by querying Neon's `pg_tables` — all 4 tables present.
+- **Bug + fix (connection string format):** Npgsql's `NpgsqlConnectionStringBuilder` does **not** accept Neon's URI-style connection string (`postgresql://...`). It expects a key-value form (`Host=...;Database=...;Username=...;Password=...`). The first `dotnet ef database update` failed with `Couldn't set postgresql://... (Parameter ...)`. **Fix:** added `ConnectionStringHelper.cs` which detects a `postgres://`/`postgresql://` URI, parses it into an `NpgsqlConnectionStringBuilder` (Host/Port/Database/Username/Password + `SslMode=Require`), and returns a valid key-value connection string. `Program.cs` now calls `ConnectionStringHelper.Normalize(...)` on the resolved `DATABASE_URL`. `TrustServerCertificate` was skipped (obsolete in Npgsql 10). Build clean (0 errors, 0 warnings) after fix.
+
+### Step 5 — Add API key middleware
+- Create a middleware class checking for an `X-Api-Key` header on every request.
+- Compare against a value read from `IConfiguration`, sourced from an environment variable — never hardcoded.
+- Return `401 Unauthorized` if missing or incorrect.
+- Register the middleware after routing, before controllers.
+- Exclude a lightweight health-check endpoint if one exists, so Render's health checks still pass.
+- **If this breaks existing endpoints or the health check:** remove the middleware registration (revert this file only) and report which endpoint broke, before retrying.
+- **Ask the user:** "Middleware added. Want me to generate a random API key now, or do you already have one?"
+
+### Step 6 — Disable Swagger in production
+- Wrap Swagger/OpenAPI middleware registration in `if (app.Environment.IsDevelopment())`.
+- Confirm it still works locally in Development but is unreachable once deployed.
+- **Ask the user:** "Swagger is now dev-only. Confirm you're OK with no API explorer on production before I continue?"
+
+### Step 7 — Set environment variables on Render
+- List exactly which env vars need to be set on Render's dashboard: **Neon** connection string, API key value, `ASPNETCORE_ENVIRONMENT=Production`.
+- Have the user confirm each one is set (agent cannot set these directly).
+- **Ask the user:** "Please confirm these env vars are set on Render, then I'll proceed to trigger a deploy."
+
+### Step 8 — Deploy and smoke test
+- Push changes to a branch (or main, per the user's existing workflow) to trigger the GitHub Actions pipeline.
+- Once deployed, `curl` the Render URL's health/root endpoint — first without the API key (expect 401), then with it (expect success).
+- **If the deploy fails or the smoke test fails:** revert the branch/commit that triggered the deploy back to the last known good commit (the one before Step 2, or the most recent successfully-deployed one), redeploy that, confirm the old version is back up and serving traffic, then report the failure before touching anything further.
+- **Ask the user:** "Deploy succeeded and the API key check is working. Ready to move to the Flutter side?"
+
+### Step 9 — Point Flutter app at the Render URL
+- Update the Flutter app's base API URL (currently localhost/laptop IP) to the Render `.onrender.com` URL.
+- Add the `X-Api-Key` header to the app's HTTP client, reading the key from a config file **not** committed to source control.
+- **If the app fails to reach the new URL or auth fails:** revert the base URL and header change back to pointing at the laptop backend, confirm the app works again locally, then report the exact error.
+- **Ask the user:** "Flutter app updated to point at Render with the API key attached. Want me to run a full end-to-end test now?"
+
+### Step 10 — End-to-end verification
+- Open the app on phone/emulator → create a test entry → confirm it appears in Neon → confirm Dashboard/Table views load from the live Render backend.
+- Report pass/fail on each check.
+- **If any check fails:** identify which layer failed (Flutter → Render, or Render → Neon) and revert only that layer's most recent change, not the whole stack, then report before retrying.
+- **Ask the user:** "All checks passed — anything you'd like me to double-check, or are we done here?"
+
+### Step 11 — Set up a recurring backup (permanence safeguard)
+- Add a scheduled GitHub Action (e.g. weekly) that runs `pg_dump` against the Neon connection string and saves the dump as a build artifact or emails it, so the user is never solely dependent on Neon's uptime.
+- Confirm the action runs successfully at least once manually before relying on the schedule.
+- **Ask the user:** "Backup job is set up and tested. Anything else before we call this done?"
+
+---
+
+**Reminders for the agent throughout:**
+- Never commit secrets (API keys, connection strings) to source control — always use environment variables / dashboard secret management.
+- Neon is the database, permanently — do not substitute Render's built-in free Postgres at any point, since that one expires after 30 days.
+- If a step requires manual action on Render's or Neon's dashboard, say so clearly — you cannot click through their UI.
+- On any failure: revert first, report second, wait for the user's go-ahead before retrying — never fix-forward silently.
