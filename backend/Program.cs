@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using FinanceTracker.Api;
 using FinanceTracker.Api.Data;
+using FinanceTracker.Api.Middleware;
 
 DotNetEnv.Env.TraversePath().Load();
 
@@ -26,6 +27,11 @@ var app = builder.Build();
 
 app.UseCors();
 app.UseHttpsRedirection();
+
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+app.UseMiddleware<ApiKeyMiddleware>();
+
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())

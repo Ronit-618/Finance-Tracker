@@ -519,7 +519,7 @@ Context: ASP.NET Core Web API backend (currently using SQL Server LocalDB) + Flu
 - **Result:** Migration `20260831113324_InitialPostgresMigration` applied successfully to Neon. Created `Entries`, `Bills`, `Transactions` tables (with FKs, indexes, `numeric(18,2)` amounts, `timestamp with time zone` dates) plus `__EFMigrationsHistory`. Verified directly by querying Neon's `pg_tables` — all 4 tables present.
 - **Bug + fix (connection string format):** Npgsql's `NpgsqlConnectionStringBuilder` does **not** accept Neon's URI-style connection string (`postgresql://...`). It expects a key-value form (`Host=...;Database=...;Username=...;Password=...`). The first `dotnet ef database update` failed with `Couldn't set postgresql://... (Parameter ...)`. **Fix:** added `ConnectionStringHelper.cs` which detects a `postgres://`/`postgresql://` URI, parses it into an `NpgsqlConnectionStringBuilder` (Host/Port/Database/Username/Password + `SslMode=Require`), and returns a valid key-value connection string. `Program.cs` now calls `ConnectionStringHelper.Normalize(...)` on the resolved `DATABASE_URL`. `TrustServerCertificate` was skipped (obsolete in Npgsql 10). Build clean (0 errors, 0 warnings) after fix.
 
-### Step 5 — Add API key middleware
+### Step 5 — Add API key middleware ✅ DONE (local smoke test passed on 2026-09-01)
 - Create a middleware class checking for an `X-Api-Key` header on every request.
 - Compare against a value read from `IConfiguration`, sourced from an environment variable — never hardcoded.
 - Return `401 Unauthorized` if missing or incorrect.
@@ -528,10 +528,26 @@ Context: ASP.NET Core Web API backend (currently using SQL Server LocalDB) + Flu
 - **If this breaks existing endpoints or the health check:** remove the middleware registration (revert this file only) and report which endpoint broke, before retrying.
 - **Ask the user:** "Middleware added. Want me to generate a random API key now, or do you already have one?"
 
-### Step 6 — Disable Swagger in production
-- Wrap Swagger/OpenAPI middleware registration in `if (app.Environment.IsDevelopment())`.
-- Confirm it still works locally in Development but is unreachable once deployed.
-- **Ask the user:** "Swagger is now dev-only. Confirm you're OK with no API explorer on production before I continue?"
+**Status:**
+- ✅ Committed Step 4 as rollback checkpoint `2f296cd` (Postgres swap + Neon migration + ConnectionStringHelper). `.env` was NOT committed (gitignored).
+- ✅ Created `backend/Middleware/ApiKeyMiddleware.cs` — checks `X-Api-Key` header against `configuration["ApiKey"]` (from env var), returns `401` if missing/incorrect; bypasses auth for `/health` path.
+- ✅ Added `/health` endpoint (`GET /health` → `{ status: "ok" }`) in `Program.cs` for Render health checks (excluded from API-key middleware).
+- ✅ Registered `app.UseMiddleware<ApiKeyMiddleware>()` in `Program.cs` after `UseHttpsRedirection`, before `MapControllers()`.
+- ✅ Added `using FinanceTracker.Api.Middleware;` to `Program.cs`.
+- ✅ Build succeeds (0 errors, 0 warnings).
+- ✅ **Local smoke test completed** on 2026-09-01 against Neon (real `.env` DATABASE_URL → startup migration check "database already up to date"):
+  - `/health` (no key) → **200** ✅
+  - `/api/Entry` (no key) → **401** ✅
+  - `/api/Entry` with `X-Api-Key: smoke-test-key-opencode-2026` → **200** ✅
+  - App was tested on port **5044** instead of 5099 — `builder.WebHost.UseUrls("http://0.0.0.0:5044")` in `Program.cs` hard-sets the URL and overrides `ASPNETCORE_URLS`/launchSettings, so 5099 never binds. Port number is irrelevant to the middleware behavior; 5044 is the production-matching port.
+  - Background `dotnet run` process killed and verified no listener remains on 5044.
+- ✅ Committed Step 5 as rollback checkpoint `a596c37` (ApiKeyMiddleware + `/health` endpoint + `UseMiddleware<ApiKeyMiddleware>()` registration in `Program.cs`). Working tree clean. Rollback point going forward: **`a596c37`**.
+- **Next up:** Step 6 (disable Swagger in production). The real API key value gets set on Render in Step 7 (env var `ApiKey`), not locally — the throwaway key above only proves the middleware works.
+
+### Step 6 — Disable Swagger in production ✅ DONE (2026-09-06)
+- **Finding:** Swagger/OpenAPI was **never wired into this project** — `Program.cs` has no `AddOpenApi()`/`MapOpenApi()`/`UseSwagger()` calls (verified across git history back to the beta commit `db01af3`, and grepping the repo for `Swagger`/`OpenAPI`/`AddEndpointsApiExplorer` returns nothing). The ASP.NET Core template's Swagger block appears to have been removed long before the deployment work began.
+- **Result:** There is no API explorer served now or in production — nothing to disable, and no Swagger endpoint can ever be reached after deploy. Step 6's intent (no API explorer on production) is already satisfied; no code change required.
+- **Next up:** Step 7 (set environment variables on Render — manual dashboard action).
 
 ### Step 7 — Set environment variables on Render
 - List exactly which env vars need to be set on Render's dashboard: **Neon** connection string, API key value, `ASPNETCORE_ENVIRONMENT=Production`.
