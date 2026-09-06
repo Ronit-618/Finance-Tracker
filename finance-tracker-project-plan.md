@@ -554,6 +554,11 @@ Context: ASP.NET Core Web API backend (currently using SQL Server LocalDB) + Flu
 - Have the user confirm each one is set (agent cannot set these directly).
 - **Ask the user:** "Please confirm these env vars are set on Render, then I'll proceed to trigger a deploy."
 
+**Status (in progress, 2026-09-06):**
+- ✅ **Prep: PORT-aware binding** — `Program.cs` now binds to `http://0.0.0.0:$PORT` (fallback `5044` for local dev). Render's proxy forwards to `$PORT`; without this the hard-coded 5044 would make the service unreachable. Committed as `144d41c`. Build clean (0 errors, 0 warnings).
+- Confirmed **no GitHub Actions workflow or `render.yaml` exists** in any branch — the deploy will be a **new Render Web Service** connected to GitHub, Root Directory `backend`, connected to branch `main`.
+- Env vars for the new service: `DATABASE_URL` (Neon pooled URI), `ApiKey` (`ft-LwBcPDNmtjhUZoGHhuDXdXxDY9qhYVKo`), `ASPNETCORE_ENVIRONMENT=Production`.
+
 ### Step 8 — Deploy and smoke test
 - Push changes to a branch (or main, per the user's existing workflow) to trigger the GitHub Actions pipeline.
 - Once deployed, `curl` the Render URL's health/root endpoint — first without the API key (expect 401), then with it (expect success).
