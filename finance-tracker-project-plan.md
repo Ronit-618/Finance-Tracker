@@ -541,7 +541,7 @@ Context: ASP.NET Core Web API backend (currently using SQL Server LocalDB) + Flu
   - `/api/Entry` with `X-Api-Key: smoke-test-key-opencode-2026` → **200** ✅
   - App was tested on port **5044** instead of 5099 — `builder.WebHost.UseUrls("http://0.0.0.0:5044")` in `Program.cs` hard-sets the URL and overrides `ASPNETCORE_URLS`/launchSettings, so 5099 never binds. Port number is irrelevant to the middleware behavior; 5044 is the production-matching port.
   - Background `dotnet run` process killed and verified no listener remains on 5044.
-- ✅ Committed Step 5 as rollback checkpoint `a596c37` (ApiKeyMiddleware + `/health` endpoint + `UseMiddleware<ApiKeyMiddleware>()` registration in `Program.cs`). Working tree clean. Rollback point going forward: **`a596c37`**.
+- ✅ Committed Step 5 as rollback checkpoint `c567c28` (ApiKeyMiddleware + `/health` endpoint + `UseMiddleware<ApiKeyMiddleware>()` registration in `Program.cs`). Working tree clean. Rollback point going forward: **`c567c28`**.
 - **Next up:** Step 6 (disable Swagger in production). The real API key value gets set on Render in Step 7 (env var `ApiKey`), not locally — the throwaway key above only proves the middleware works.
 
 ### Step 6 — Disable Swagger in production ✅ DONE (2026-09-06)
