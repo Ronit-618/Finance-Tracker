@@ -556,7 +556,8 @@ Context: ASP.NET Core Web API backend (currently using SQL Server LocalDB) + Flu
 
 **Status (in progress, 2026-09-06):**
 - ✅ **Prep: PORT-aware binding** — `Program.cs` now binds to `http://0.0.0.0:$PORT` (fallback `5044` for local dev). Render's proxy forwards to `$PORT`; without this the hard-coded 5044 would make the service unreachable. Committed as `b1bd9f1`. Build clean (0 errors, 0 warnings).
-- Confirmed **no GitHub Actions workflow or `render.yaml` exists** in any branch — the deploy will be a **new Render Web Service** connected to GitHub, Root Directory `backend`, connected to branch `main`.
+- ✅ **Prep: Dockerfile added** — No `Dockerfile` existed; Render's web service (with Docker selected — the only "language" option that works without a buildpack for .NET 10 here) requires one in `backend/`. Created `backend/Dockerfile` (multi-stage: `sdk:10.0` build → `aspnet:10.0` runtime, `dotnet publish -c Release`, entrypoint `dotnet FinanceTracker.Api.dll`). Project targets `net10.0`, so base images are **`10.0`**, not the commonly-copied `8.0`. App listens on `$PORT` per the PORT-aware binding above. Local `docker build` could not be verified (Docker daemon not running) — Render does the real build. Committed as `2c49...` below.
+- Confirmed **no GitHub Actions workflow or `render.yaml` exists** in any branch — the deploy is a **new Render Web Service** connected to GitHub: branch `main`, Root Directory `backend`, **Docker** as the language/runtime (picks up `backend/Dockerfile`), env vars set on the service.
 - Env vars for the new service: `DATABASE_URL` (Neon pooled URI), `ApiKey` (`ft-LwBcPDNmtjhUZoGHhuDXdXxDY9qhYVKo`), `ASPNETCORE_ENVIRONMENT=Production`.
 
 ### Step 8 — Deploy and smoke test
