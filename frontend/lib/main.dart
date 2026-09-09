@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/settings_providers.dart';
+import 'config/api_config.dart';
 import 'services/api_service.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/entry_list_screen.dart';
@@ -8,7 +9,7 @@ import 'screens/pending_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
 
-final _api = ApiService('http://192.168.15.106:5044');
+final _api = ApiService(ApiConfig.baseUrl);
 final RouteObserver<ModalRoute> routeObserver = RouteObserver<ModalRoute>();
 
 void main() {

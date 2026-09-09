@@ -36,6 +36,9 @@ migrate_working_dir/
 # Symbolication related
 app.*.symbols
 
+# Local API config (contains API key) — generate api_config.dart locally, do not commit
+/lib/config/api_config.dart
+
 # Obfuscation related
 app.*.map.json
 

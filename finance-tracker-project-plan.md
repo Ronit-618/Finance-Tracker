@@ -370,6 +370,10 @@ Notes:
   - **Also fixed:** `transaction_detail_screen.dart` screenshot-placeholder used deprecated `colorScheme.surfaceVariant` → `surfaceContainerHighest` (resolves deprecation info).
   - **Files changed:** `screens/reports_screen.dart`, `screens/dashboard_screen.dart`, `screens/transaction_detail_screen.dart`, `widgets/income_vs_expense_chart.dart`, `widgets/savings_chart.dart`, `widgets/top_spending_list.dart`.
   - Builds with 0 errors, 0 warnings (flutter analyze).
+- 🚀 **v1.0.0.0 — OFFICIAL RELEASE** — 2026-09-09.
+  - Backend live on Render (`https://finance-tracker-pups.onrender.com`) with Neon Postgres + `X-Api-Key` middleware (deployment Steps 1-9 complete).
+  - Flutter app pointed at the Render URL, API key attached from a gitignored config (`frontend/lib/config/api_config.dart`).
+  - Tagged `v1.0.0.0`.
 
 ## 8. Frontend Flow (Flutter — Dart)
 
@@ -451,7 +455,7 @@ Context: ASP.NET Core Web API backend (currently using SQL Server LocalDB) + Flu
 
 ---
 
-**STATUS: Steps 1-3 are already complete** (EF Core provider swapped from SQL Server to PostgreSQL, and the initial Postgres migration has been generated). Do not redo them. Before resuming at Step 4, first do a quick sanity check: confirm the current build still compiles clean, confirm the Step 2/3 commit is the current rollback point going forward, and confirm no real (non-placeholder) connection string or credentials were accidentally committed during steps 1-3. Report the sanity check result to the user, then proceed to Step 4.
+**STATUS: Steps 1-9 are complete.** App is deployed and live at `https://finance-tracker-pups.onrender.com` (Neon DB + API key gate verified in production), and the Flutter app has been pointed at the Render URL with the `X-Api-Key` header attached. Current rollback point: `2f296cd` (Step 4 checkpoint, pre-deploy). Next up: **Step 10 — End-to-end verification** (create a test entry on the phone and confirm it lands in Neon), then **Step 11 — recurring backup**. Do not redo Steps 1-9.
 
 ### Step 1 — Audit current data layer *(completed)*
 - Find every place `UseSqlServer` is referenced (likely `Program.cs`/`Startup.cs` and `DbContext` configuration).
@@ -549,29 +553,49 @@ Context: ASP.NET Core Web API backend (currently using SQL Server LocalDB) + Flu
 - **Result:** There is no API explorer served now or in production — nothing to disable, and no Swagger endpoint can ever be reached after deploy. Step 6's intent (no API explorer on production) is already satisfied; no code change required.
 - **Next up:** Step 7 (set environment variables on Render — manual dashboard action).
 
-### Step 7 — Set environment variables on Render
+### Step 7 — Set environment variables on Render ✅ DONE (2026-09-06)
 - List exactly which env vars need to be set on Render's dashboard: **Neon** connection string, API key value, `ASPNETCORE_ENVIRONMENT=Production`.
 - Have the user confirm each one is set (agent cannot set these directly).
 - **Ask the user:** "Please confirm these env vars are set on Render, then I'll proceed to trigger a deploy."
 
-**Status (in progress, 2026-09-06):**
+**Status: ✅ DONE (completed 2026-09-06, verified again in Step 8 smoke test on 2026-09-09):**
 - ✅ **Prep: PORT-aware binding** — `Program.cs` now binds to `http://0.0.0.0:$PORT` (fallback `5044` for local dev). Render's proxy forwards to `$PORT`; without this the hard-coded 5044 would make the service unreachable. Committed as `b1bd9f1`. Build clean (0 errors, 0 warnings).
 - ✅ **Prep: Dockerfile added** — No `Dockerfile` existed; Render's web service (with Docker selected — the only "language" option that works without a buildpack for .NET 10 here) requires one in `backend/`. Created `backend/Dockerfile` (multi-stage: `sdk:10.0` build → `aspnet:10.0` runtime, `dotnet publish -c Release`, entrypoint `dotnet FinanceTracker.Api.dll`). Project targets `net10.0`, so base images are **`10.0`**, not the commonly-copied `8.0`. App listens on `$PORT` per the PORT-aware binding above. Local `docker build` could not be verified (Docker daemon not running) — Render does the real build. Committed as `c5d2a88`.
 - ✅ **Prep: branches pushed** — `develop → origin/develop` (`42e31c5`) and `main → origin/main` (`536eecd`, including the remote-only merge commit `bf820e7` pulled in with a clean ort merge). `main` now contains the Dockerfile, middleware, PORT-aware binding and all deployment prep — the GitHub branch Render will build from is ready.
 - Confirmed **no GitHub Actions workflow or `render.yaml` exists** in any branch — the deploy is a **new Render Web Service** connected to GitHub: branch `main`, Root Directory `backend`, **Docker** as the language/runtime (picks up `backend/Dockerfile`), env vars set on the service.
 - Env vars for the new service: `DATABASE_URL` (Neon pooled URI), `ApiKey` (`ft-LwBcPDNmtjhUZoGHhuDXdXxDY9qhYVKo`), `ASPNETCORE_ENVIRONMENT=Production`.
+- ✅ **Web service created on Render** — connected to `Ronit-618/Finance-Tracker`, branch `main`, Root Directory `backend`, Language: Docker, Instance Type: Free, Region: Singapore. All three env vars set via "Add from .env".
+- ✅ **First deploy succeeded** (commit `536eecd`, duration 56.8s) — Docker build completed (`sdk:10.0` → `aspnet:10.0`), EF Core startup check ran (`database already up to date`, no pending migrations), app bound to Render's `$PORT` (10000), service reported **Live**.
+- Non-blocking warnings observed in deploy log: `libgssapi_krb5.so.2` missing (harmless — not using Kerberos auth, `sslmode=require` connection succeeded regardless) and `Failed to determine the https port for redirect` (expected — Render's proxy terminates TLS before the container).
+- **Live URL:** `https://finance-tracker-pups.onrender.com`
 
-### Step 8 — Deploy and smoke test
+### Step 8 — Deploy and smoke test ✅ DONE (2026-09-09)
 - Push changes to a branch (or main, per the user's existing workflow) to trigger the GitHub Actions pipeline.
 - Once deployed, `curl` the Render URL's health/root endpoint — first without the API key (expect 401), then with it (expect success).
-- **If the deploy fails or the smoke test fails:** revert the branch/commit that triggered the deploy back to the last known good commit (the one before Step 2, or the most recent successfully-deployed one), redeploy that, confirm the old version is back up and serving traffic, then report the failure before touching anything further.
+- **If the deploy fails or the smoke test fails:** revert the branch/commit that triggered the deploy back to the last known good commit (the one before Step 2, or the most recently successfully-deployed one), redeploy that, confirm the old version is back up and serving traffic, then report the failure before touching anything further.
 - **Ask the user:** "Deploy succeeded and the API key check is working. Ready to move to the Flutter side?"
 
-### Step 9 — Point Flutter app at the Render URL
+**Status (2026-09-09):**
+- ✅ Deploy was already live from Step 7 (commit `536eecd`). Smoke test run against `https://finance-tracker-pups.onrender.com`:
+  - `GET /health` (no key) → **200** ✅
+  - `GET /api/Entry` (no key) → **401** ✅
+  - `GET /api/Entry` with `X-Api-Key: [REDACTED]` → **200** (`[]` — empty Neon table) ✅
+- Deploy is live and the API-key gate works in production. **Next up (Step 9):** point the Flutter app at the Render URL.
+
+### Step 9 — Point Flutter app at the Render URL ✅ DONE (2026-09-09)
 - Update the Flutter app's base API URL (currently localhost/laptop IP) to the Render `.onrender.com` URL.
 - Add the `X-Api-Key` header to the app's HTTP client, reading the key from a config file **not** committed to source control.
 - **If the app fails to reach the new URL or auth fails:** revert the base URL and header change back to pointing at the laptop backend, confirm the app works again locally, then report the exact error.
 - **Ask the user:** "Flutter app updated to point at Render with the API key attached. Want me to run a full end-to-end test now?"
+
+**Status (2026-09-09):**
+- ✅ **API key re-verified live first:** `GET /api/Entry/summary` with `X-Api-Key: [REDACTED]` → **200** (`{"totalEntries":0,...}`). Key confirmed correct before touching the app.
+- ✅ **Created `frontend/lib/config/api_config.dart`** (gitignored) — `ApiConfig.baseUrl = 'https://finance-tracker-pups.onrender.com'` and `ApiConfig.apiKey` holding the key. Verified with `git check-ignore` — file does not appear in `git status`.
+- ✅ **Added `/lib/config/api_config.dart` to `frontend/.gitignore`** (new "Local API config" section).
+- ✅ **`ApiService` now sends auth on every request** (`api_service.dart`): added `_headers` (`{'X-Api-Key': ApiConfig.apiKey}`) and `_jsonHeaders` (`Content-Type` + key). All 10 HTTP calls (GET list/get/grouped/summary/trial-balance/by-category, POST, PUT, DELETE) now pass the header.
+- ✅ **`main.dart`** changed from `ApiService('http://192.168.15.106:5044')` to `ApiService(ApiConfig.baseUrl)`.
+- ✅ `flutter analyze` — **No issues found** (4.8s).
+- Rollback point: the app still builds the old URL simply by editing `api_config.dart`/`main.dart` back — no schema or backend change involved.
 
 ### Step 10 — End-to-end verification
 - Open the app on phone/emulator → create a test entry → confirm it appears in Neon → confirm Dashboard/Table views load from the live Render backend.
