@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as dev;
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 import '../models/entry.dart';
 import '../models/entry_summary.dart';
 import '../models/category_total.dart';
@@ -11,6 +12,13 @@ class ApiService {
   final String baseUrl;
 
   ApiService(this.baseUrl);
+
+  Map<String, String> get _headers => {'X-Api-Key': ApiConfig.apiKey};
+
+  Map<String, String> get _jsonHeaders => {
+        'Content-Type': 'application/json',
+        'X-Api-Key': ApiConfig.apiKey,
+      };
 
   Future<List<Entry>> getEntries({
     DateTime? from,
@@ -31,7 +39,7 @@ class ApiService {
     if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
 
     final uri = Uri.parse('$baseUrl/api/Entry').replace(queryParameters: params.isNotEmpty ? params : null);
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: _headers);
     if (res.statusCode != 200) throw Exception('Failed to load entries');
 
     final List<dynamic> data = jsonDecode(res.body);
@@ -39,7 +47,7 @@ class ApiService {
   }
 
   Future<Entry> getEntry(int id) async {
-    final res = await http.get(Uri.parse('$baseUrl/api/Entry/$id'));
+    final res = await http.get(Uri.parse('$baseUrl/api/Entry/$id'), headers: _headers);
     if (res.statusCode != 200) throw Exception('Failed to load entry');
     return Entry.fromJson(jsonDecode(res.body));
   }
@@ -47,7 +55,7 @@ class ApiService {
   Future<Entry> createEntry(Map<String, dynamic> body) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/Entry'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode(body),
     );
     if (res.statusCode != 201) {
@@ -60,7 +68,7 @@ class ApiService {
   Future<Entry> updateEntry(int id, Map<String, dynamic> body) async {
     final res = await http.put(
       Uri.parse('$baseUrl/api/Entry/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _jsonHeaders,
       body: jsonEncode(body),
     );
     if (res.statusCode != 200) throw Exception('Failed to update entry');
@@ -68,7 +76,7 @@ class ApiService {
   }
 
   Future<void> deleteEntry(int id) async {
-    final res = await http.delete(Uri.parse('$baseUrl/api/Entry/$id'));
+    final res = await http.delete(Uri.parse('$baseUrl/api/Entry/$id'), headers: _headers);
     if (res.statusCode != 204) throw Exception('Failed to delete entry');
   }
 
@@ -87,7 +95,7 @@ class ApiService {
     if (paymentType != null) params['paymentType'] = paymentType.toString();
 
     final uri = Uri.parse('$baseUrl/api/Entry/summary').replace(queryParameters: params.isNotEmpty ? params : null);
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: _headers);
     if (res.statusCode != 200) throw Exception('Failed to load summary');
     return EntrySummary.fromJson(jsonDecode(res.body));
   }
@@ -101,7 +109,7 @@ class ApiService {
     if (bsYear != null) params['bsYear'] = bsYear.toString();
     if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
     final uri = Uri.parse('$baseUrl/api/Entry/trial-balance').replace(queryParameters: params.isNotEmpty ? params : null);
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: _headers);
     if (res.statusCode != 200) throw Exception('Failed to load trial balance');
     return TrialBalanceResponse.fromJson(jsonDecode(res.body));
   }
@@ -111,7 +119,7 @@ class ApiService {
     if (type != null) params['type'] = type.toString();
 
     final uri = Uri.parse('$baseUrl/api/Entry/by-category').replace(queryParameters: params.isNotEmpty ? params : null);
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: _headers);
     if (res.statusCode != 200) throw Exception('Failed to load category totals');
     final List<dynamic> data = jsonDecode(res.body);
     return data.map((e) => CategoryTotal.fromJson(e)).toList();
@@ -133,7 +141,7 @@ int? category,
     if (paymentType != null) params['paymentType'] = paymentType.toString();
 
     final uri = Uri.parse('$baseUrl/api/Entry/grouped').replace(queryParameters: params);
-    final res = await http.get(uri);
+    final res = await http.get(uri, headers: _headers);
     if (res.statusCode != 200) throw Exception('Failed to load groups');
     final List<dynamic> data = jsonDecode(res.body);
     return data.map((e) => EntryGroup.fromJson(e)).toList();
