@@ -44,6 +44,9 @@ backend/**/appsettings.Development.json
 .env
 .env.*
 
+# ─── Private project notes (may contain credentials) — never commit ──────────
+finance-tracker-project-plan.md
+
 # ─── IntelliJ / Android Studio ─────────────────────────────────────────────────
 *.iml
 *.ipr
