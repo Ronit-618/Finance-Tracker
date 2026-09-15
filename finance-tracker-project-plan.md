@@ -374,6 +374,25 @@ Notes:
   - Backend live on Render (`https://finance-tracker-pups.onrender.com`) with Neon Postgres + `X-Api-Key` middleware (deployment Steps 1-9 complete).
   - Flutter app pointed at the Render URL, API key attached from a gitignored config (`frontend/lib/config/api_config.dart`).
   - Tagged `v1.0.0.0`.
+- ⚠️ **P1 BUG: Phone fails to resolve `finance-tracker-pups.onrender.com` — DNS fails on BOTH Wi-Fi and mobile data** — 2026-09-13.
+  - Symptom on device: `ClientException with SocketException: Failed host lookup: 'finance-tracker-pups.onrender.com' (OS Error: No address associated with hostname, errno = 7)`.
+  - Confirmed the domain itself is healthy: Google (`dns.google`), Cloudflare (`1.1.1.1`) and AdGuard (`dns.adguard.com`) public resolvers ALL resolve it → `216.24.57.15` / `216.24.57.7`, and Render `/health` returns 200. No propagation issue.
+  - Phone config verified clean: `api_config.dart` baseUrl is exactly `https://finance-tracker-pups.onrender.com` (41 ASCII chars, no whitespace/invisible characters).
+  - Phone uses **Private DNS = `dns.adguard.com`** (AdGuard ad-blocker, validated servers `94.140.14.14`/`94.140.15.15`) — prime suspect for a transient/blocked resolution, but resolution still failed even after switching networks, so the root cause is still open.
+  - App-side fix SHIPPED (stops the ugly crash, does NOT cure the DNS problem): `ApiService` now wraps every HTTP call in a guard converting `SocketException`/`http.ClientException`/`TimeoutException` into "No internet connection, please check your network" (+45s timeout); Dashboard, Transactions, and Reports show a `NetworkErrorView` with a Retry button; Entry Form / Detail delete show the friendly message too.
+  - **Open action (priority):** set phone Private DNS to Automatic/Off → retest; toggle Wi-Fi/mobile data to flush the negative DNS cache; test on a second phone; if it still fails, add a fallback hostname/known-IP workaround or a wrapper domain.
+- ✅ **Fix shipped (2026-09-14) — known-IP DNS-free fallback** (manual DNS flush steps on the phone still failed, so this was built).
+  - `api_config.dart`: added `fallbackAddresses` map — `finance-tracker-pups.onrender.com` → `['216.24.57.15', '216.24.57.7']` (current A records, verified 2026-09-14 via `Resolve-DnsName`).
+  - `api_service.dart`: `_guard` now detects a DNS-resolution failure (`Failed host lookup` / errno 7) and retries the request once through a pinned-IP `HttpClient` (dart:io `connectionFactory`). The fallback TCP-connects to the literal IPs and upgrades each socket with `SecureSocket.secure(socket, host: <real hostname>)` — so SNI + certificate validation still use the real domain. Full TLS, no insecure `badCertificateCallback`.
+  - Verified end-to-end against live Render (forcing the pinned path): `GET /health` → 200, `GET /api/Entry` no key → 401, with key → 200. `flutter analyze` → No issues found.
+   - Note: the fallback only triggers when normal DNS fails, so a stale IP is invisible as long as DNS works; if Render's CDN IPs ever change, update `fallbackAddresses`. Next phone test required to confirm the fix in the field.
+- ✅ **P2 BUG FIXED: Backend 500 on filtered requests** — 2026-09-15.
+  - **Root cause (confirmed with stack trace, reproduced locally against Neon):**
+    `System.ArgumentException: Cannot write DateTime with Kind=Unspecified to PostgreSQL type 'timestamp with time zone', only UTC is supported`
+    thrown from `EntryController.GetAll` at `ToListAsync()`. Query-string dates (`from=2026-09-01`), `new DateTime(year, month, 1)`, and `DateTime.Parse` results all have `Kind=Unspecified`, and Npgsql 8+ refuses to send those as parameters for `timestamptz` columns. Unfiltered GET skipped the date filter so it worked; every endpoint touching `Date` failed (filtered GET, summary, grouped, trial-balance AD+BS). POST also failed for the same reason (`request.Date` written straight into the `timestamptz` column) — that was the "Failed to create Entry(500)" on the phone.
+  - **Fix (`backend/Controllers/EntriesController.cs` only):** added `NormalizeToUtc(DateTime)` helper — `Utc` passes through, `Local` → `ToUniversalTime()`, `Unspecified` → `SpecifyKind(Utc)` (dates are calendar days; treating them as UTC preserves the old SQL Server `datetime2` comparison semantics exactly). Applied in `FilterQuery` (covers GET/summary/grouped + the `bsYear/bsMonth` path feeding it), `GetTrialBalanceInternal` (covers AD + BS trial-balance), and `Create` (`Date = NormalizeToUtc(request.Date)`).
+  - **Verified locally against Neon (then deleted the test row, DB left empty):** plain GET → 200, filtered GET → 200 (was 500), trial-balance AD → 200 (was 500), summary+grouped filtered → 200, BS filter + BS trial-balance → 200, POST → 201 (was 500), DELETE → 204.
+  - **Deploy note:** this changes only backend code — needs a Render redeploy (push to `main`) before the phone sees the fix. The DNS known-IP fallback from the P1 fix is untouched.
 
 ## 8. Frontend Flow (Flutter — Dart)
 
@@ -439,6 +458,7 @@ POST /api/Entry { description, amount, category, type, date, screenshotPath }
 - [ ] Whether Nepali date support is needed for MVP or can wait
 - [ ] iOS support timeline, if any, and what the capture flow looks like there
 - [x] Whether Category's "Income" option should be filtered out when Type = Expense (and vice versa) to avoid contradictory Type/Category combinations in the Entry Form — **Resolved: implemented in Entry Form. When Type = Expense, only PersonalPayment/BillSharing/Loan shown; when Type = Income, only Income category shown.**
+- [x] **(HIGH PRIORITY)** Fix phone DNS resolution failure for `finance-tracker-pups.onrender.com` — **Resolved (2026-09-14) with a known-IP DNS-free fallback** (see P1 bug entry above). App now retries via pinned IPs `216.24.57.15` / `216.24.57.7` when host lookup fails, keeping TLS/SNI on the real hostname. Remaining action: re-verify `/health` + real requests from the phone after a fresh app install (needs one field test).
 - [ ] Screenshot storage currently uses `MANAGE_EXTERNAL_STORAGE` ("All files access") to write to a public folder (`/storage/emulated/0/FinanceTracker/Transaction/Screenshot/`). This is acceptable for a personal/sideloaded app but is **not** Play Store–friendly — Google typically rejects this permission for this use case in favor of the MediaStore API or Storage Access Framework (SAF). Revisit this before any Play Store release.
 
 ---
