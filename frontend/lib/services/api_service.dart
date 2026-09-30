@@ -10,6 +10,8 @@ import '../models/entry_summary.dart';
 import '../models/category_total.dart';
 import '../models/entry_group.dart';
 import '../models/trial_balance_item.dart';
+import '../models/saving.dart';
+import '../models/loan.dart';
 
 const String networkErrorMessage = 'No internet connection, please check your network';
 
@@ -255,5 +257,136 @@ int? category,
     if (res.statusCode != 200) throw ApiException('Failed to load groups (${res.statusCode})');
     final List<dynamic> data = jsonDecode(res.body);
     return data.map((e) => EntryGroup.fromJson(e)).toList();
+  }
+
+  // ---- Savings ----
+
+  Future<List<Saving>> getSavings({
+    DateTime? from,
+    DateTime? to,
+    int? bsYear,
+    int? bsMonth,
+  }) async {
+    final params = <String, String>{};
+    if (from != null) params['from'] = from.toIso8601String().split('T')[0];
+    if (to != null) params['to'] = to.toIso8601String().split('T')[0];
+    if (bsYear != null) params['bsYear'] = bsYear.toString();
+    if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
+
+    final uri = Uri.parse('$baseUrl/api/Saving').replace(queryParameters: params.isNotEmpty ? params : null);
+    final res = await _get(uri);
+    if (res.statusCode != 200) throw ApiException('Failed to load savings (${res.statusCode})');
+    final List<dynamic> data = jsonDecode(res.body);
+    return data.map((e) => Saving.fromJson(e)).toList();
+  }
+
+  Future<Saving> getSaving(int id) async {
+    final res = await _get(Uri.parse('$baseUrl/api/Saving/$id'));
+    if (res.statusCode != 200) throw ApiException('Failed to load saving (${res.statusCode})');
+    return Saving.fromJson(jsonDecode(res.body));
+  }
+
+  Future<Saving> createSaving(Map<String, dynamic> body) async {
+    final res = await _post(Uri.parse('$baseUrl/api/Saving'), jsonEncode(body));
+    if (res.statusCode != 201) {
+      dev.log('createSaving failed: ${res.statusCode} ${res.body}', name: 'ApiService');
+      throw ApiException('Failed to create saving (${res.statusCode})');
+    }
+    return Saving.fromJson(jsonDecode(res.body));
+  }
+
+  Future<Saving> updateSaving(int id, Map<String, dynamic> body) async {
+    final res = await _put(Uri.parse('$baseUrl/api/Saving/$id'), jsonEncode(body));
+    if (res.statusCode != 200) throw ApiException('Failed to update saving (${res.statusCode})');
+    return Saving.fromJson(jsonDecode(res.body));
+  }
+
+  Future<void> deleteSaving(int id) async {
+    final res = await _delete(Uri.parse('$baseUrl/api/Saving/$id'));
+    if (res.statusCode != 204) throw ApiException('Failed to delete saving (${res.statusCode})');
+  }
+
+  Future<SavingSummary> getSavingSummary({
+    DateTime? from,
+    DateTime? to,
+    int? bsYear,
+    int? bsMonth,
+  }) async {
+    final params = <String, String>{};
+    if (from != null) params['from'] = from.toIso8601String().split('T')[0];
+    if (to != null) params['to'] = to.toIso8601String().split('T')[0];
+    if (bsYear != null) params['bsYear'] = bsYear.toString();
+    if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
+
+    final uri = Uri.parse('$baseUrl/api/Saving/summary').replace(queryParameters: params.isNotEmpty ? params : null);
+    final res = await _get(uri);
+    if (res.statusCode != 200) throw ApiException('Failed to load saving summary (${res.statusCode})');
+    return SavingSummary.fromJson(jsonDecode(res.body));
+  }
+
+  // ---- Loans ----
+
+  Future<List<Loan>> getLoans({
+    DateTime? from,
+    DateTime? to,
+    int? bsYear,
+    int? bsMonth,
+    String? direction,
+    bool? isSettled,
+    String? person,
+  }) async {
+    final params = <String, String>{};
+    if (from != null) params['from'] = from.toIso8601String().split('T')[0];
+    if (to != null) params['to'] = to.toIso8601String().split('T')[0];
+    if (bsYear != null) params['bsYear'] = bsYear.toString();
+    if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
+    if (direction != null) params['direction'] = direction;
+    if (isSettled != null) params['isSettled'] = isSettled.toString();
+    if (person != null && person.trim().isNotEmpty) params['person'] = person.trim();
+
+    final uri = Uri.parse('$baseUrl/api/Loan').replace(queryParameters: params.isNotEmpty ? params : null);
+    final res = await _get(uri);
+    if (res.statusCode != 200) throw ApiException('Failed to load loans (${res.statusCode})');
+    final List<dynamic> data = jsonDecode(res.body);
+    return data.map((e) => Loan.fromJson(e)).toList();
+  }
+
+  Future<Loan> getLoan(int id) async {
+    final res = await _get(Uri.parse('$baseUrl/api/Loan/$id'));
+    if (res.statusCode != 200) throw ApiException('Failed to load loan (${res.statusCode})');
+    return Loan.fromJson(jsonDecode(res.body));
+  }
+
+  Future<Loan> createLoan(Map<String, dynamic> body) async {
+    final res = await _post(Uri.parse('$baseUrl/api/Loan'), jsonEncode(body));
+    if (res.statusCode != 201) {
+      dev.log('createLoan failed: ${res.statusCode} ${res.body}', name: 'ApiService');
+      throw ApiException('Failed to create loan (${res.statusCode})');
+    }
+    return Loan.fromJson(jsonDecode(res.body));
+  }
+
+  Future<Loan> updateLoan(int id, Map<String, dynamic> body) async {
+    final res = await _put(Uri.parse('$baseUrl/api/Loan/$id'), jsonEncode(body));
+    if (res.statusCode != 200) throw ApiException('Failed to update loan (${res.statusCode})');
+    return Loan.fromJson(jsonDecode(res.body));
+  }
+
+  /// Toggles the settled flag. Returns the loan in its new state.
+  Future<Loan> toggleLoanSettled(int id) async {
+    final res = await _post(Uri.parse('$baseUrl/api/Loan/$id/settle'), '');
+    if (res.statusCode != 200) throw ApiException('Failed to update loan status (${res.statusCode})');
+    return Loan.fromJson(jsonDecode(res.body));
+  }
+
+  Future<void> deleteLoan(int id) async {
+    final res = await _delete(Uri.parse('$baseUrl/api/Loan/$id'));
+    if (res.statusCode != 204) throw ApiException('Failed to delete loan (${res.statusCode})');
+  }
+
+  Future<LoanSummary> getLoanSummary() async {
+    final res = await _get(Uri.parse('$baseUrl/api/Loan/summary'));
+    if (res.statusCode != 200) throw ApiException('Failed to load loan summary (${res.statusCode})');
+    return LoanSummary.fromJson(jsonDecode(res.body));
   }
 }
