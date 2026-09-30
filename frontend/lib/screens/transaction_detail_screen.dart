@@ -64,7 +64,7 @@ class TransactionDetailScreen extends ConsumerWidget {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$e')),
+            SnackBar(content: Text(friendlyError(e))),
           );
         }
       }

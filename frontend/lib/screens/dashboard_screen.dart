@@ -9,6 +9,7 @@ import '../models/pending_store.dart';
 import '../providers/drawer_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/network_error_view.dart';
 import '../widgets/savings_chart.dart';
 import '../widgets/expense_category_chart.dart';
 import '../widgets/income_vs_expense_chart.dart';
@@ -27,6 +28,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
   List<EntryGroup> _monthlyGroups = [];
   List<CategoryTotal> _categoryExpenses = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -72,13 +74,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
         _loading = false;
       });
     } catch (e) {
-      setState(() => _loading = false);
-      if (mounted) {
+      final message = friendlyError(e);
+      setState(() {
+        _loading = false;
+        _error = message;
+      });
+      if (mounted && _summary != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text(message)),
         );
       }
     }
+  }
+
+  void _retry() {
+    setState(() => _error = null);
+    _loadData();
   }
 
   @override
@@ -102,7 +113,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
       drawer: AppDrawer(pendingCount: PendingStore().length),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
+          : _error != null && _summary == null
+              ? NetworkErrorView(message: _error!, onRetry: _retry)
+              : RefreshIndicator(
               onRefresh: _loadData,
               child: ListView(
                 padding: const EdgeInsets.all(16),

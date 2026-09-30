@@ -90,8 +90,8 @@ public class EntryController : ControllerBase
 
     private async Task<ActionResult<TrialBalanceResponse>> GetTrialBalanceInternal(DateTime from, DateTime to)
     {
-        var fromUtc = NormalizeToUtc(from);
-        var toUtc = NormalizeToUtc(to);
+        var fromUtc = DateHelper.NormalizeToUtc(from);
+        var toUtc = DateHelper.NormalizeToUtc(to);
 
         var entries = await _db.Entries
             .Where(e => e.Date >= fromUtc && e.Date <= toUtc)
@@ -186,7 +186,7 @@ public class EntryController : ControllerBase
         var entry = new Entry
         {
             SN = maxSN + 1,
-            Date = NormalizeToUtc(request.Date),
+            Date = DateHelper.NormalizeToUtc(request.Date),
             Description = request.Description,
             Category = request.Category,
             Type = request.Type,
@@ -298,9 +298,9 @@ public class EntryController : ControllerBase
         var query = _db.Entries.AsQueryable();
 
         if (from.HasValue)
-            query = query.Where(e => e.Date >= NormalizeToUtc(from.Value.Date));
+            query = query.Where(e => e.Date >= DateHelper.NormalizeToUtc(from.Value.Date));
         if (to.HasValue)
-            query = query.Where(e => e.Date <= NormalizeToUtc(to.Value.Date));
+            query = query.Where(e => e.Date <= DateHelper.NormalizeToUtc(to.Value.Date));
         if (category.HasValue)
             query = query.Where(e => e.Category == category.Value);
         if (type.HasValue)
@@ -310,18 +310,6 @@ public class EntryController : ControllerBase
 
         return query;
     }
-
-    // Npgsql 8+ refuses to send a DateTime with Kind=Unspecified (or Local)
-    // as a parameter for a Postgres "timestamp with time zone" column.
-    // Query-string dates ("2026-09-01"), new DateTime(y,m,d), and
-    // DateTime.Parse results all arrive as Unspecified, so every value
-    // that touches a timestamptz column must go through here first.
-    private static DateTime NormalizeToUtc(DateTime dt) => dt.Kind switch
-    {
-        DateTimeKind.Utc => dt,
-        DateTimeKind.Local => dt.ToUniversalTime(),
-        _ => DateTime.SpecifyKind(dt, DateTimeKind.Utc),
-    };
 
     private static EntryResponse MapToResponse(Entry e) => new()
     {
