@@ -10,6 +10,8 @@ public class AppDbContext : DbContext
     public DbSet<Entry> Entries => Set<Entry>();
     public DbSet<Bill> Bills => Set<Bill>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<Saving> Savings => Set<Saving>();
+    public DbSet<Loan> Loans => Set<Loan>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -53,6 +55,38 @@ public class AppDbContext : DbContext
             entity.HasOne(e => e.Bill)
                   .WithOne()
                   .HasForeignKey<Transaction>(e => e.BillId);
+        });
+
+        modelBuilder.Entity<Saving>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SN).IsRequired();
+            entity.Property(e => e.Date).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.Category).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.ScreenshotPath).HasMaxLength(1000);
+            entity.Property(e => e.IsCompleted).HasDefaultValue(0);
+            entity.HasIndex(e => e.SN);
+            entity.HasIndex(e => e.Date);
+        });
+
+        modelBuilder.Entity<Loan>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SN).IsRequired();
+            entity.Property(e => e.Date).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.FromPerson).HasMaxLength(200);
+            entity.Property(e => e.ToPerson).HasMaxLength(200);
+            entity.Property(e => e.Direction).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.Category).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.ScreenshotPath).HasMaxLength(1000);
+            entity.Property(e => e.IsCompleted).HasDefaultValue(0);
+            entity.HasIndex(e => e.SN);
+            entity.HasIndex(e => e.Date);
+            entity.HasIndex(e => new { e.Direction, e.IsSettled });
         });
     }
 }
