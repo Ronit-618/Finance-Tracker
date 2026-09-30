@@ -10,6 +10,7 @@ import '../providers/settings_providers.dart';
 import '../services/api_service.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/date_display.dart';
+import '../widgets/network_error_view.dart';
 import 'transaction_detail_screen.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
@@ -28,6 +29,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
   TrialBalanceResponse? _trialBalance;
   List<Entry> _entries = [];
   bool _loading = false;
+  String? _error;
 
   bool get _isBs => ref.read(dateFormatProvider) == DateFormatMode.bs;
 
@@ -84,11 +86,20 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
         _loading = false;
       });
     } catch (e) {
-      setState(() => _loading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      final message = friendlyError(e);
+      setState(() {
+        _loading = false;
+        _error = message;
+      });
+      if (mounted && (_trialBalance != null || _entries.isNotEmpty)) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     }
+  }
+
+  void _retry() {
+    setState(() => _error = null);
+    _loadData();
   }
 
   void _syncBsFromAd() {
@@ -148,13 +159,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildTrialBalance(),
-                      _buildTransactions(),
-                    ],
-                  ),
+                : _error != null && _trialBalance == null && _entries.isEmpty
+                    ? NetworkErrorView(message: _error!, onRetry: _retry)
+                    : TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildTrialBalance(),
+                          _buildTransactions(),
+                        ],
+                      ),
           ),
         ],
       ),

@@ -7,6 +7,7 @@ import '../providers/drawer_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/date_display.dart';
+import '../widgets/network_error_view.dart';
 import 'transaction_detail_screen.dart';
 
 class EntryListScreen extends ConsumerStatefulWidget {
@@ -19,6 +20,7 @@ class EntryListScreen extends ConsumerStatefulWidget {
 class _EntryListScreenState extends ConsumerState<EntryListScreen> {
   List<Entry> _entries = [];
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -39,13 +41,22 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
         _loading = false;
       });
     } catch (e) {
-      setState(() => _loading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      final message = friendlyError(e);
+      setState(() {
+        _loading = false;
+        _error = message;
+      });
+      if (mounted && _entries.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
       }
     }
+  }
+
+  void _retry() {
+    setState(() => _error = null);
+    _loadData();
   }
 
   void _openDetail(Entry entry) async {
@@ -88,7 +99,9 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
       drawer: AppDrawer(pendingCount: PendingStore().length),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
+          : _error != null && _entries.isEmpty
+              ? NetworkErrorView(message: _error!, onRetry: _retry)
+              : RefreshIndicator(
               onRefresh: _loadData,
               child: _entries.isEmpty
                   ? ListView(
