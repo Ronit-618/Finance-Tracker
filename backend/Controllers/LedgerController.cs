@@ -61,12 +61,17 @@ public class LedgerController : ControllerBase
             {
                 Kind = isExpense ? "expense" : "income",
                 Id = e.Id,
+                SN = e.SN,
                 Date = e.Date,
                 Description = e.Description,
                 Amount = isExpense ? -e.Amount : e.Amount,
                 Category = e.Category.ToString(),
                 ScreenshotPath = e.ScreenshotPath,
-                BsDate = NepaliDateService.AdToBs(e.Date)
+                BsDate = NepaliDateService.AdToBs(e.Date),
+                Type = isExpense ? 0 : 1,
+                PaymentType = e.PaymentType == PaymentType.Debit ? 0 : 1,
+                IsCompleted = e.IsCompleted,
+                CreatedAt = e.CreatedAt
             });
         }
 
@@ -76,12 +81,15 @@ public class LedgerController : ControllerBase
             {
                 Kind = "saving",
                 Id = s.Id,
+                SN = s.SN,
                 Date = s.Date,
                 Description = s.Description,
                 Amount = -s.Amount,
                 Category = s.Category,
                 ScreenshotPath = s.ScreenshotPath,
-                BsDate = NepaliDateService.AdToBs(s.Date)
+                BsDate = NepaliDateService.AdToBs(s.Date),
+                IsCompleted = s.IsCompleted,
+                CreatedAt = s.CreatedAt
             });
         }
 
@@ -93,12 +101,15 @@ public class LedgerController : ControllerBase
             {
                 Kind = "loan",
                 Id = l.Id,
+                SN = l.SN,
                 Date = l.Date,
                 Description = l.Description,
                 Amount = isBorrowed ? l.Amount : -l.Amount,
                 Category = l.Category,
                 ScreenshotPath = l.ScreenshotPath,
                 BsDate = NepaliDateService.AdToBs(l.Date),
+                IsCompleted = l.IsCompleted,
+                CreatedAt = l.CreatedAt,
                 FromPerson = l.FromPerson,
                 ToPerson = l.ToPerson,
                 Direction = l.Direction.ToString(),
@@ -120,6 +131,7 @@ public class LedgerController : ControllerBase
                 Category = "Repayment",
                 ScreenshotPath = r.ScreenshotPath,
                 BsDate = NepaliDateService.AdToBs(r.Date),
+                CreatedAt = r.CreatedAt,
                 LoanId = r.LoanId,
                 Note = r.Note
             });

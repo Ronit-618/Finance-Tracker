@@ -12,8 +12,17 @@ public class LedgerItemResponse
     public string Kind { get; set; } = string.Empty;
 
     public int Id { get; set; }
+    public int SN { get; set; }
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;
+
+    /// <summary>0 = expense, 1 = income. Only meaningful for the expense/income kinds.</summary>
+    public int Type { get; set; }
+
+    /// <summary>0 = debit, 1 = credit. Only meaningful for the expense/income kinds.</summary>
+    public int PaymentType { get; set; }
+    public int IsCompleted { get; set; }
+    public DateTime CreatedAt { get; set; }
 
     /// <summary>
     /// Signed amount: positive for money that came in (income, a borrowed loan),
