@@ -12,6 +12,7 @@ import '../models/entry_group.dart';
 import '../models/trial_balance_item.dart';
 import '../models/saving.dart';
 import '../models/loan.dart';
+import '../models/loan_repayment.dart';
 
 const String networkErrorMessage = 'No internet connection, please check your network';
 
@@ -388,5 +389,53 @@ int? category,
     final res = await _get(Uri.parse('$baseUrl/api/Loan/summary'));
     if (res.statusCode != 200) throw ApiException('Failed to load loan summary (${res.statusCode})');
     return LoanSummary.fromJson(jsonDecode(res.body));
+  }
+
+  // ---- Loan repayments (partial paybacks) ----
+
+  Future<List<LoanRepayment>> getLoanRepayments(int loanId) async {
+    final res = await _get(Uri.parse('$baseUrl/api/Loan/$loanId/repayments'));
+    if (res.statusCode != 200) {
+      throw ApiException('Failed to load repayments (${res.statusCode})');
+    }
+    final List<dynamic> data = jsonDecode(res.body);
+    return data.map((e) => LoanRepayment.fromJson(e)).toList();
+  }
+
+  Future<LoanRepayment> createLoanRepayment(
+    int loanId,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await _post(Uri.parse('$baseUrl/api/Loan/$loanId/repayments'), jsonEncode(body));
+    if (res.statusCode != 201) {
+      dev.log('createLoanRepayment failed: ${res.statusCode} ${res.body}', name: 'ApiService');
+      throw ApiException(_repaymentError(res));
+    }
+    return LoanRepayment.fromJson(jsonDecode(res.body));
+  }
+
+  Future<void> deleteLoanRepayment(int repaymentId) async {
+    final res = await _delete(Uri.parse('$baseUrl/api/Loan/repayments/$repaymentId'));
+    if (res.statusCode != 204) {
+      throw ApiException('Failed to delete repayment (${res.statusCode})');
+    }
+  }
+
+  /// The API returns plain-text validation messages (e.g. overpayment), which
+  /// are more useful to show than a bare status code.
+  String _repaymentError(http.Response res) {
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded is String && decoded.isNotEmpty) return decoded;
+      if (decoded is Map && decoded['title'] != null) {
+        final errors = decoded['errors'];
+        if (errors is Map && errors.isNotEmpty) {
+          return errors.values.first.toString();
+        }
+      }
+    } catch (_) {
+      // fall through to the generic message
+    }
+    return 'Failed to record repayment (${res.statusCode})';
   }
 }
