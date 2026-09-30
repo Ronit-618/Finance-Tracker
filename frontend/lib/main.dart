@@ -8,6 +8,8 @@ import 'screens/entry_list_screen.dart';
 import 'screens/pending_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/saving_list_screen.dart';
+import 'screens/loan_list_screen.dart';
 
 final _api = ApiService(ApiConfig.baseUrl);
 final RouteObserver<ModalRoute> routeObserver = RouteObserver<ModalRoute>();
@@ -41,6 +43,8 @@ class MyApp extends ConsumerWidget {
         '/pending': (context) => PendingScreen(api: _api),
         '/transactions': (context) => EntryListScreen(api: _api),
         '/reports': (context) => ReportsScreen(api: _api),
+        '/savings': (context) => SavingListScreen(api: _api),
+        '/loans': (context) => LoanListScreen(api: _api),
         '/settings': (context) => const SettingsScreen(),
       },
     );
