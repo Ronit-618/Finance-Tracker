@@ -38,6 +38,12 @@ public class LoanResponse
     public int IsCompleted { get; set; }
     public DateTime CreatedAt { get; set; }
     public string? BsDate { get; set; }
+
+    /// Sum of this loan's repayments.
+    public decimal AmountRepaid { get; set; }
+
+    /// Amount still owed: Amount - AmountRepaid. Never negative.
+    public decimal Outstanding { get; set; }
 }
 
 public class LoanSummaryResponse

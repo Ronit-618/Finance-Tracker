@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<Saving> Savings => Set<Saving>();
     public DbSet<Loan> Loans => Set<Loan>();
+    public DbSet<LoanRepayment> LoanRepayments => Set<LoanRepayment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -87,6 +88,20 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.SN);
             entity.HasIndex(e => e.Date);
             entity.HasIndex(e => new { e.Direction, e.IsSettled });
+        });
+
+        modelBuilder.Entity<LoanRepayment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.Note).HasMaxLength(500);
+            entity.Property(e => e.ScreenshotPath).HasMaxLength(1000);
+            entity.HasOne(e => e.Loan)
+                  .WithMany(l => l.Repayments)
+                  .HasForeignKey(e => e.LoanId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => e.LoanId);
+            entity.HasIndex(e => e.Date);
         });
     }
 }

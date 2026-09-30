@@ -57,7 +57,9 @@ public class LoanController : ControllerBase
             .ThenByDescending(l => l.SN)
             .ToListAsync();
 
-        return loans.Select(MapToResponse).ToList();
+        var repaid = await RepaidByLoanIdsAsync(loans.Select(l => l.Id));
+
+        return loans.Select(l => MapToResponse(l, repaid.GetValueOrDefault(l.Id))).ToList();
     }
 
     [HttpGet("summary")]
@@ -67,20 +69,26 @@ public class LoanController : ControllerBase
             .Where(l => !l.IsSettled)
             .ToListAsync();
 
+        // Outstanding is net of repayments, so partial paybacks reduce what
+        // the dashboard reports as owed.
+        var repaid = await RepaidByLoanIdsAsync(openLoans.Select(l => l.Id));
+
+        decimal Outstanding(Loan l) => Math.Max(0, l.Amount - repaid.GetValueOrDefault(l.Id));
+
         return new LoanSummaryResponse
         {
             TotalBorrowed = openLoans
                 .Where(l => l.Direction == LoanDirection.Borrowed)
-                .Sum(l => l.Amount),
+                .Sum(Outstanding),
             TotalLent = openLoans
                 .Where(l => l.Direction == LoanDirection.Lent)
-                .Sum(l => l.Amount),
+                .Sum(Outstanding),
             PayableOutstanding = openLoans
                 .Where(l => l.Direction == LoanDirection.Borrowed)
-                .Sum(l => l.Amount),
+                .Sum(Outstanding),
             ReceivableOutstanding = openLoans
                 .Where(l => l.Direction == LoanDirection.Lent)
-                .Sum(l => l.Amount),
+                .Sum(Outstanding),
             OpenCount = openLoans.Count
         };
     }
@@ -91,7 +99,7 @@ public class LoanController : ControllerBase
         var loan = await _db.Loans.FindAsync(id);
         if (loan is null) return NotFound();
 
-        return MapToResponse(loan);
+        return MapToResponse(loan, await RepaidAsync(loan.Id));
     }
 
     [HttpPost]
@@ -131,7 +139,7 @@ public class LoanController : ControllerBase
         _db.Loans.Add(loan);
         await _db.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = loan.Id }, MapToResponse(loan));
+        return CreatedAtAction(nameof(GetById), new { id = loan.Id }, MapToResponse(loan, 0));
     }
 
     [HttpPut("{id:int}")]
@@ -142,6 +150,11 @@ public class LoanController : ControllerBase
 
         if (request.Amount <= 0)
             return BadRequest("Amount must be greater than 0");
+
+        var alreadyRepaid = await RepaidAsync(loan.Id);
+        if (request.Amount < alreadyRepaid)
+            return BadRequest(
+                $"Amount cannot be less than what has already been repaid ({alreadyRepaid:0.00})");
 
         var fromPerson = string.IsNullOrWhiteSpace(request.FromPerson) ? null : request.FromPerson.Trim();
         var toPerson = string.IsNullOrWhiteSpace(request.ToPerson) ? null : request.ToPerson.Trim();
@@ -161,9 +174,116 @@ public class LoanController : ControllerBase
         loan.IsCompleted = 1;
         loan.CreatedAt = DateTime.UtcNow;
 
+        // Reducing the amount below what is already repaid would leave the loan
+        // silently over-settled, so re-derive the settled flag.
+        await RecalculateSettledAsync(loan);
+
         await _db.SaveChangesAsync();
 
-        return MapToResponse(loan);
+        return MapToResponse(loan, alreadyRepaid);
+    }
+
+    [HttpGet("{id:int}/repayments")]
+    public async Task<ActionResult<List<LoanRepaymentResponse>>> GetRepayments(int id)
+    {
+        if (!await _db.Loans.AnyAsync(l => l.Id == id)) return NotFound();
+
+        var repayments = await _db.LoanRepayments
+            .Where(r => r.LoanId == id)
+            .OrderByDescending(r => r.Date)
+            .ThenByDescending(r => r.Id)
+            .ToListAsync();
+
+        return repayments.Select(MapRepaymentToResponse).ToList();
+    }
+
+    [HttpGet("{id:int}/balance")]
+    public async Task<ActionResult<LoanBalanceResponse>> GetBalance(int id)
+    {
+        var loan = await _db.Loans.FindAsync(id);
+        if (loan is null) return NotFound();
+
+        var repaid = await RepaidAsync(id);
+
+        return new LoanBalanceResponse
+        {
+            LoanId = loan.Id,
+            OriginalAmount = loan.Amount,
+            AmountRepaid = repaid,
+            Outstanding = Math.Max(0, loan.Amount - repaid),
+            IsSettled = loan.IsSettled,
+            SettledDate = loan.SettledDate
+        };
+    }
+
+    [HttpPost("{id:int}/repayments")]
+    public async Task<ActionResult<LoanRepaymentResponse>> AddRepayment(
+        int id, CreateLoanRepaymentRequest request)
+    {
+        var loan = await _db.Loans.FindAsync(id);
+        if (loan is null) return NotFound();
+
+        if (request.Amount <= 0)
+            return BadRequest("Repayment amount must be greater than 0");
+
+        if (loan.IsSettled)
+            return BadRequest("This loan is already settled. Reopen it before adding a repayment.");
+
+        var repaid = await RepaidAsync(id);
+        var outstanding = loan.Amount - repaid;
+
+        if (request.Amount > outstanding)
+            return BadRequest(
+                $"Repayment cannot exceed the outstanding balance of {outstanding:0.00}");
+
+        var repayment = new LoanRepayment
+        {
+            LoanId = loan.Id,
+            Amount = request.Amount,
+            Date = request.Date == default
+                ? DateTime.UtcNow
+                : DateHelper.NormalizeToUtc(request.Date),
+            Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
+            ScreenshotPath = request.ScreenshotPath,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.LoanRepayments.Add(repayment);
+
+        // Reaching zero settles the loan automatically.
+        if (repaid + repayment.Amount >= loan.Amount)
+        {
+            loan.IsSettled = true;
+            loan.SettledDate = DateTime.UtcNow;
+            loan.CreatedAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetRepayments), new { id = loan.Id },
+            MapRepaymentToResponse(repayment));
+    }
+
+    [HttpDelete("repayments/{repaymentId:int}")]
+    public async Task<IActionResult> DeleteRepayment(int repaymentId)
+    {
+        var repayment = await _db.LoanRepayments.FindAsync(repaymentId);
+        if (repayment is null) return NotFound();
+
+        var loan = await _db.Loans.FindAsync(repayment.LoanId);
+        _db.LoanRepayments.Remove(repayment);
+
+        // Removing a repayment re-opens a loan that had auto-settled.
+        if (loan is not null)
+        {
+            loan.IsSettled = false;
+            loan.SettledDate = null;
+            loan.CreatedAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+
+        return NoContent();
     }
 
     [HttpPost("{id:int}/settle")]
@@ -172,13 +292,18 @@ public class LoanController : ControllerBase
         var loan = await _db.Loans.FindAsync(id);
         if (loan is null) return NotFound();
 
+        var repaid = await RepaidAsync(id);
+        if (repaid > 0)
+            return BadRequest(
+                "This loan has recorded repayments, so it settles automatically. Delete the repayments to change it.");
+
         loan.IsSettled = !loan.IsSettled;
         loan.SettledDate = loan.IsSettled ? DateTime.UtcNow : null;
         loan.CreatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
 
-        return MapToResponse(loan);
+        return MapToResponse(loan, repaid);
     }
 
     [HttpDelete("{id:int}")]
@@ -193,7 +318,53 @@ public class LoanController : ControllerBase
         return NoContent();
     }
 
-    private static LoanResponse MapToResponse(Loan l) => new()
+    private async Task<decimal> RepaidAsync(int loanId) =>
+        await _db.LoanRepayments
+            .Where(r => r.LoanId == loanId)
+            .SumAsync(r => (decimal?)r.Amount) ?? 0m;
+
+    /// Re-derives the settled flag from the current amount and repayments so an
+    /// edit that changes Amount can't leave a contradictory state.
+    private async Task RecalculateSettledAsync(Loan loan)
+    {
+        var repaid = await RepaidAsync(loan.Id);
+
+        if (repaid > 0)
+        {
+            var shouldSettle = repaid >= loan.Amount;
+            if (shouldSettle != loan.IsSettled)
+            {
+                loan.IsSettled = shouldSettle;
+                loan.SettledDate = shouldSettle ? loan.SettledDate ?? DateTime.UtcNow : null;
+            }
+        }
+    }
+
+    private async Task<Dictionary<int, decimal>> RepaidByLoanIdsAsync(IEnumerable<int> loanIds)
+    {
+        var ids = loanIds.ToList();
+        if (ids.Count == 0) return new Dictionary<int, decimal>();
+
+        return await _db.LoanRepayments
+            .Where(r => ids.Contains(r.LoanId))
+            .GroupBy(r => r.LoanId)
+            .Select(g => new { LoanId = g.Key, Total = g.Sum(r => r.Amount) })
+            .ToDictionaryAsync(x => x.LoanId, x => x.Total);
+    }
+
+    private static LoanRepaymentResponse MapRepaymentToResponse(LoanRepayment r) => new()
+    {
+        Id = r.Id,
+        LoanId = r.LoanId,
+        Amount = r.Amount,
+        Date = r.Date,
+        Note = r.Note,
+        ScreenshotPath = r.ScreenshotPath,
+        CreatedAt = r.CreatedAt,
+        BsDate = NepaliDateService.AdToBs(r.Date)
+    };
+
+    private static LoanResponse MapToResponse(Loan l, decimal amountRepaid) => new()
     {
         Id = l.Id,
         SN = l.SN,
@@ -209,6 +380,8 @@ public class LoanController : ControllerBase
         ScreenshotPath = l.ScreenshotPath,
         IsCompleted = l.IsCompleted,
         CreatedAt = l.CreatedAt,
-        BsDate = NepaliDateService.AdToBs(l.Date)
+        BsDate = NepaliDateService.AdToBs(l.Date),
+        AmountRepaid = amountRepaid,
+        Outstanding = Math.Max(0, l.Amount - amountRepaid)
     };
 }

@@ -22,4 +22,6 @@ public class Loan
     public string? ScreenshotPath { get; set; }
     public int IsCompleted { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    public List<LoanRepayment> Repayments { get; set; } = [];
 }
