@@ -5,11 +5,14 @@ import '../main.dart' show routeObserver;
 import '../models/category_total.dart';
 import '../models/entry_group.dart';
 import '../models/entry_summary.dart';
+import '../models/loan.dart';
 import '../models/pending_store.dart';
+import '../models/saving.dart';
 import '../providers/drawer_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/network_error_view.dart';
+import '../widgets/position_card.dart';
 import '../widgets/savings_chart.dart';
 import '../widgets/expense_category_chart.dart';
 import '../widgets/income_vs_expense_chart.dart';
@@ -27,6 +30,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
   EntrySummary? _summary;
   List<EntryGroup> _monthlyGroups = [];
   List<CategoryTotal> _categoryExpenses = [];
+  SavingSummary? _savingSummary;
+  LoanSummary? _loanSummary;
   bool _loading = true;
   String? _error;
 
@@ -67,6 +72,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
         widget.api.getGrouped(period: 'month'),
         widget.api.getCategoryTotals(type: 0),
       ]);
+      if (!mounted) return;
       setState(() {
         _summary = results[0] as EntrySummary;
         _monthlyGroups = results[1] as List<EntryGroup>;
@@ -75,15 +81,33 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
       });
     } catch (e) {
       final message = friendlyError(e);
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _error = message;
       });
-      if (mounted && _summary != null) {
+      if (_summary != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),
         );
       }
+      return;
+    }
+
+    // Savings/Loans are loaded separately so a failure here never blocks the
+    // v1 income/expense dashboard above.
+    try {
+      final position = await Future.wait([
+        widget.api.getSavingSummary(),
+        widget.api.getLoanSummary(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _savingSummary = position[0] as SavingSummary;
+        _loanSummary = position[1] as LoanSummary;
+      });
+    } catch (e) {
+      debugPrint('Position section failed to load: $e');
     }
   }
 
@@ -121,6 +145,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
                 padding: const EdgeInsets.all(16),
                 children: [
                   _buildSummaryCard(),
+                  const SizedBox(height: 16),
+                  PositionCard(savings: _savingSummary, loans: _loanSummary),
                   const SizedBox(height: 24),
                   Text('Monthly Trend', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
