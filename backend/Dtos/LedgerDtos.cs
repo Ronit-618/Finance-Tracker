@@ -32,6 +32,10 @@ public class LedgerItemResponse
     public decimal Amount { get; set; }
 
     public string Category { get; set; } = string.Empty;
+
+    /// <summary>Sub-category for a PersonalPayment expense (Food, Fuel, Meat, Extra).</summary>
+    public string? SubCategory { get; set; }
+
     public string? ScreenshotPath { get; set; }
     public string? BsDate { get; set; }
 

@@ -66,6 +66,7 @@ public class LedgerController : ControllerBase
                 Description = e.Description,
                 Amount = isExpense ? -e.Amount : e.Amount,
                 Category = e.Category.ToString(),
+                SubCategory = e.SubCategory,
                 ScreenshotPath = e.ScreenshotPath,
                 BsDate = NepaliDateService.AdToBs(e.Date),
                 Type = isExpense ? 0 : 1,

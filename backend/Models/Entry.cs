@@ -27,6 +27,12 @@ public class Entry
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;
     public EntryCategory Category { get; set; }
+
+    /// <summary>
+    /// Optional sub-category for a PersonalPayment expense (Food, Fuel, Meat, Extra).
+    /// </summary>
+    public string? SubCategory { get; set; }
+
     public EntryType Type { get; set; }
     public PaymentType PaymentType { get; set; }
     public decimal Amount { get; set; }

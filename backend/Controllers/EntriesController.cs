@@ -126,10 +126,10 @@ public class EntryController : ControllerBase
             query = query.Where(e => e.Type == type.Value);
 
         var result = await query
-            .GroupBy(e => e.Category)
+            .GroupBy(e => e.SubCategory ?? e.Category.ToString())
             .Select(g => new CategoryTotalResponse
             {
-                Category = g.Key.ToString(),
+                Category = g.Key,
                 Total = g.Sum(e => e.Amount),
                 EntryCount = g.Count()
             })
@@ -189,6 +189,9 @@ public class EntryController : ControllerBase
             Date = DateHelper.NormalizeToUtc(request.Date),
             Description = request.Description,
             Category = request.Category,
+            SubCategory = string.IsNullOrWhiteSpace(request.SubCategory)
+                ? null
+                : request.SubCategory.Trim(),
             Type = request.Type,
             PaymentType = request.Type == EntryType.Expense ? PaymentType.Debit : PaymentType.Credit,
             Amount = request.Amount,
@@ -236,6 +239,9 @@ public class EntryController : ControllerBase
 
         entry.Description = request.Description;
         entry.Category = request.Category;
+        entry.SubCategory = string.IsNullOrWhiteSpace(request.SubCategory)
+            ? null
+            : request.SubCategory.Trim();
         entry.Type = request.Type;
         entry.PaymentType = request.Type == EntryType.Expense ? PaymentType.Debit : PaymentType.Credit;
         entry.Amount = request.Amount;
@@ -318,6 +324,7 @@ public class EntryController : ControllerBase
         Date = e.Date,
         Description = e.Description,
         Category = e.Category,
+        SubCategory = e.SubCategory,
         Type = e.Type,
         PaymentType = e.PaymentType,
         Amount = e.Amount,
