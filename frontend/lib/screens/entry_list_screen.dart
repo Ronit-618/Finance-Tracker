@@ -2,14 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/entry.dart';
+import '../models/ledger_item.dart';
+import '../models/loan.dart';
 import '../models/pending_store.dart';
+import '../models/saving.dart';
 import '../providers/drawer_provider.dart';
 import '../services/api_service.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/date_display.dart';
 import '../widgets/network_error_view.dart';
+import 'loan_detail_screen.dart';
+import 'saving_detail_screen.dart';
 import 'transaction_detail_screen.dart';
 
+/// The unified ledger: every record the app can create — expenses, income,
+/// savings, loans and loan repayments — in one date-sorted feed.
 class EntryListScreen extends ConsumerStatefulWidget {
   final ApiService api;
   const EntryListScreen({super.key, required this.api});
@@ -18,7 +25,7 @@ class EntryListScreen extends ConsumerStatefulWidget {
 }
 
 class _EntryListScreenState extends ConsumerState<EntryListScreen> {
-  List<Entry> _entries = [];
+  List<LedgerItem> _items = [];
   bool _loading = true;
   String? _error;
 
@@ -35,9 +42,9 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
   Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
-      final entries = await widget.api.getEntries();
+      final items = await widget.api.getLedger();
       setState(() {
-        _entries = entries;
+        _items = items;
         _loading = false;
       });
     } catch (e) {
@@ -46,7 +53,7 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
         _loading = false;
         _error = message;
       });
-      if (mounted && _entries.isNotEmpty) {
+      if (mounted && _items.isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),
         );
@@ -59,24 +66,97 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
     _loadData();
   }
 
-  void _openDetail(Entry entry) async {
-    final result = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TransactionDetailScreen(entry: entry, api: widget.api),
-      ),
+  int _catInt(String c) => const {
+        'PersonalPayment': 0,
+        'BillSharing': 1,
+        'Loan': 2,
+        'Income': 3,
+      }[c] ??
+      0;
+
+  Entry _toEntry(LedgerItem i) => Entry(
+        id: i.id,
+        sn: i.sn,
+        date: i.date,
+        description: i.description,
+        category: _catInt(i.category),
+        type: i.type,
+        paymentType: i.paymentType,
+        amount: i.amount.abs(),
+        screenshotPath: i.screenshotPath,
+        isCompleted: i.isCompleted,
+        createdAt: i.createdAt,
+        bsDate: i.bsDate,
+      );
+
+  Saving _toSaving(LedgerItem i) => Saving(
+        id: i.id,
+        sn: i.sn,
+        date: i.date,
+        description: i.description,
+        amount: i.amount.abs(),
+        category: i.category,
+        screenshotPath: i.screenshotPath,
+        isCompleted: i.isCompleted,
+        createdAt: i.createdAt,
+        bsDate: i.bsDate,
+      );
+
+  Loan _toLoan(LedgerItem i) => Loan(
+        id: i.id,
+        sn: i.sn,
+        date: i.date,
+        description: i.description,
+        amount: i.amount.abs(),
+        fromPerson: i.fromPerson,
+        toPerson: i.toPerson,
+        direction: i.direction ?? 'Borrowed',
+        category: i.category,
+        isSettled: i.isSettled,
+        screenshotPath: i.screenshotPath,
+        isCompleted: i.isCompleted,
+        createdAt: i.createdAt,
+        bsDate: i.bsDate,
+        amountRepaid: i.amountRepaid,
+      );
+
+  Future<void> _openDetail(LedgerItem item) async {
+    final navigator = Navigator.of(context);
+    Widget? target;
+    switch (item.kind) {
+      case 'saving':
+        target = SavingDetailScreen(saving: _toSaving(item), api: widget.api);
+        break;
+      case 'loan':
+        target = LoanDetailScreen(loan: _toLoan(item), api: widget.api);
+        break;
+      case 'repayment':
+        if (item.loanId != null) {
+          try {
+            final loan = await widget.api.getLoan(item.loanId!);
+            if (mounted) {
+              target = LoanDetailScreen(loan: loan, api: widget.api);
+            }
+          } catch (_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Could not open the parent loan')),
+              );
+            }
+            return;
+          }
+        }
+        break;
+      default:
+        target =
+            TransactionDetailScreen(entry: _toEntry(item), api: widget.api);
+    }
+    if (target == null) return;
+    final result = await navigator.push<bool>(
+      MaterialPageRoute(builder: (_) => target!),
     );
     if (result == true) _loadData();
   }
-
-  String _catName(int c) =>
-      const {
-        0: 'PersonalPayment',
-        1: 'BillSharing',
-        2: 'Loan',
-        3: 'Income',
-      }[c] ??
-      'Unknown';
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +167,8 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: GestureDetector(
-              onTap: () => Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false),
+              onTap: () => Navigator.pushNamedAndRemoveUntil(
+                  context, '/dashboard', (route) => false),
               child: CircleAvatar(
                 radius: 22,
                 backgroundImage: AssetImage('assets/images/logoST.png'),
@@ -99,43 +180,42 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
       drawer: AppDrawer(pendingCount: PendingStore().length),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _error != null && _entries.isEmpty
+          : _error != null && _items.isEmpty
               ? NetworkErrorView(message: _error!, onRetry: _retry)
               : RefreshIndicator(
-              onRefresh: _loadData,
-              child: _entries.isEmpty
-                  ? ListView(
-                      children: const [
-                        Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Center(child: Text('No entries yet')),
+                  onRefresh: _loadData,
+                  child: _items.isEmpty
+                      ? ListView(
+                          children: const [
+                            Padding(
+                              padding: EdgeInsets.all(32),
+                              child: Center(child: Text('No records yet')),
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          itemCount: _items.length,
+                          itemBuilder: (_, i) => _buildTile(_items[i]),
                         ),
-                      ],
-                    )
-                  : ListView.builder(
-                      itemCount: _entries.length,
-                      itemBuilder: (_, i) => _buildEntryTile(_entries[i]),
-                    ),
-            ),
+                ),
     );
   }
 
-  Widget _buildEntryTile(Entry entry) {
-    final isIncome = entry.type == 1;
+  Widget _buildTile(LedgerItem item) {
+    final style = _kindStyle(item);
+    final amount = NumberFormat.currency(symbol: 'Rs. ')
+        .format(item.amount.abs());
+    final sign = item.isMoneyIn ? '+' : '-';
+
     return GestureDetector(
-      onDoubleTap: () => _openDetail(entry),
+      onDoubleTap: () => _openDetail(item),
       child: Card(
         child: ListTile(
           leading: CircleAvatar(
-            backgroundColor: isIncome
-                ? Theme.of(context).colorScheme.primaryContainer
-                : Theme.of(context).colorScheme.errorContainer,
-            child: Icon(
-              isIncome ? Icons.arrow_upward : Icons.arrow_downward,
-              color: isIncome ? Colors.green : Colors.red,
-            ),
+            backgroundColor: style.color.withValues(alpha: 0.15),
+            child: Icon(style.icon, color: style.color),
           ),
-          title: Text(entry.description),
+          title: Text(item.description),
           subtitle: Row(
             children: [
               Expanded(
@@ -143,10 +223,19 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Flexible(
-                      child: DateDisplay(entry: entry, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      child: DateDisplay(
+                        date: item.date,
+                        bsDate: item.bsDate,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     Flexible(
-                      child: Text('  •  ${_catName(entry.category)}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        '  •  ${_subtitleLabel(item)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
@@ -154,14 +243,38 @@ class _EntryListScreenState extends ConsumerState<EntryListScreen> {
             ],
           ),
           trailing: Text(
-            '${isIncome ? '+' : '-'}${NumberFormat.currency(symbol: 'Rs. ').format(entry.amount)}',
+            '$sign$amount',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: isIncome ? Colors.green : Colors.red,
+              color: style.color,
             ),
           ),
         ),
       ),
     );
+  }
+
+  String _subtitleLabel(LedgerItem item) {
+    if (item.kind == 'loan') {
+      final person = item.person;
+      return person == null ? 'Loan' : 'Loan • $person';
+    }
+    if (item.kind == 'repayment') return 'Repayment';
+    return item.subCategory ?? item.category;
+  }
+
+  ({IconData icon, Color color}) _kindStyle(LedgerItem item) {
+    switch (item.kind) {
+      case 'income':
+        return (icon: Icons.arrow_upward, color: Colors.green);
+      case 'saving':
+        return (icon: Icons.savings, color: Colors.blue);
+      case 'loan':
+        return (icon: Icons.handshake, color: Colors.purple);
+      case 'repayment':
+        return (icon: Icons.replay, color: Colors.orange);
+      default:
+        return (icon: Icons.arrow_downward, color: Colors.red);
+    }
   }
 }

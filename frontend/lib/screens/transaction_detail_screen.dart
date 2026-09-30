@@ -163,7 +163,7 @@ class TransactionDetailScreen extends ConsumerWidget {
                     ref.watch(dateFormatProvider) == DateFormatMode.bs && e.bsDate != null
                         ? e.bsDate!
                         : DateFormat('MMM dd, yyyy').format(e.date)),
-                  _detailRow('Category', _catName(e.category)),
+                  _detailRow('Category', e.subCategory ?? _catName(e.category)),
                   _detailRow('Type', isIncome ? 'Income' : 'Expense'),
                   _detailRow('Payment Type',
                       const {0: 'Debit', 1: 'Credit'}[e.paymentType] ?? 'Unknown'),

@@ -4,6 +4,7 @@ class Entry {
   final DateTime date;
   final String description;
   final int category;
+  final String? subCategory;
   final int type;
   final int paymentType;
   final double amount;
@@ -18,6 +19,7 @@ class Entry {
     required this.date,
     required this.description,
     required this.category,
+    this.subCategory,
     required this.type,
     required this.paymentType,
     required this.amount,
@@ -33,6 +35,7 @@ class Entry {
         date: DateTime.parse(json['date'] as String),
         description: (json['description'] as String?) ?? '',
         category: json['category'] as int,
+        subCategory: json['subCategory'] as String?,
         type: json['type'] as int,
         paymentType: json['paymentType'] as int,
         amount: (json['amount'] as num).toDouble(),

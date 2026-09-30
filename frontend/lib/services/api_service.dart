@@ -13,6 +13,7 @@ import '../models/trial_balance_item.dart';
 import '../models/saving.dart';
 import '../models/loan.dart';
 import '../models/loan_repayment.dart';
+import '../models/ledger_item.dart';
 
 const String networkErrorMessage = 'No internet connection, please check your network';
 
@@ -100,6 +101,8 @@ class ApiService {
     try {
       return await request(null).timeout(_timeout);
     } on SocketException catch (e) {
+      dev.log('SocketException: ${e.message} | errno=${e.osError?.errorCode} | os=${e.osError?.message}',
+          name: 'ApiService');
       if (_isDnsFailure(e) && _hasFallbackIps) {
         dev.log('DNS lookup failed for $_host; retrying via pinned IP',
             name: 'ApiService');
@@ -114,9 +117,11 @@ class ApiService {
         }
       }
       throw ApiException(networkErrorMessage);
-    } on http.ClientException catch (_) {
+    } on http.ClientException catch (e) {
+      dev.log('ClientException: ${e.message}', name: 'ApiService');
       throw ApiException(networkErrorMessage);
     } on TimeoutException catch (_) {
+      dev.log('TimeoutException after ${_timeout.inSeconds}s for $_host', name: 'ApiService');
       throw ApiException(networkErrorMessage);
     }
   }
@@ -258,6 +263,51 @@ int? category,
     if (res.statusCode != 200) throw ApiException('Failed to load groups (${res.statusCode})');
     final List<dynamic> data = jsonDecode(res.body);
     return data.map((e) => EntryGroup.fromJson(e)).toList();
+  }
+
+  // ---- Unified ledger ----
+
+  Future<List<LedgerItem>> getLedger({
+    DateTime? from,
+    DateTime? to,
+    int? bsYear,
+    int? bsMonth,
+  }) async {
+    final params = <String, String>{};
+    if (from != null) params['from'] = from.toIso8601String().split('T')[0];
+    if (to != null) params['to'] = to.toIso8601String().split('T')[0];
+    if (bsYear != null) params['bsYear'] = bsYear.toString();
+    if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
+
+    final uri = Uri.parse('$baseUrl/api/Ledger')
+        .replace(queryParameters: params.isNotEmpty ? params : null);
+    final res = await _get(uri);
+    if (res.statusCode != 200) {
+      throw ApiException('Failed to load ledger (${res.statusCode})');
+    }
+    final List<dynamic> data = jsonDecode(res.body);
+    return data.map((e) => LedgerItem.fromJson(e)).toList();
+  }
+
+  Future<LedgerSummary> getLedgerSummary({
+    DateTime? from,
+    DateTime? to,
+    int? bsYear,
+    int? bsMonth,
+  }) async {
+    final params = <String, String>{};
+    if (from != null) params['from'] = from.toIso8601String().split('T')[0];
+    if (to != null) params['to'] = to.toIso8601String().split('T')[0];
+    if (bsYear != null) params['bsYear'] = bsYear.toString();
+    if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
+
+    final uri = Uri.parse('$baseUrl/api/Ledger/summary')
+        .replace(queryParameters: params.isNotEmpty ? params : null);
+    final res = await _get(uri);
+    if (res.statusCode != 200) {
+      throw ApiException('Failed to load ledger summary (${res.statusCode})');
+    }
+    return LedgerSummary.fromJson(jsonDecode(res.body));
   }
 
   // ---- Savings ----

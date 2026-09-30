@@ -47,6 +47,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   late DateTime _date;
   late int _type;
   late int _category;
+  late String _subCategory;
   late EntryFormTab _tab;
   bool _saving = false;
 
@@ -77,6 +78,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       _date = e.date;
       _type = e.type;
       _category = e.category;
+      _subCategory = e.subCategory ?? _subCategories.first;
       _tab = e.type == 1 ? EntryFormTab.income : EntryFormTab.expense;
     } else if (s != null) {
       _descCtrl.text = s.description;
@@ -97,6 +99,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       _tab = EntryFormTab.expense;
       _type = 0;
       _category = 0;
+      _subCategory = _subCategories.first;
     }
   }
 
@@ -120,6 +123,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       } else {
         _type = tab == EntryFormTab.income ? 1 : 0;
         _category = _filteredCategories.first;
+        _subCategory = _subCategories.first;
       }
     });
   }
@@ -230,6 +234,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           if (!_isEditing) 'date': DateFormat('yyyy-MM-dd').format(_date),
           'description': desc,
           'category': _category,
+          if (_category == _personalPayment) 'subCategory': _subCategory,
           'type': _type,
           'amount': amount,
           'screenshotPath': ?screenshot,
@@ -277,16 +282,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            SegmentedButton<EntryFormTab>(
-              segments: const [
-                ButtonSegment(value: EntryFormTab.expense, label: Text('Expense')),
-                ButtonSegment(value: EntryFormTab.income, label: Text('Income')),
-                ButtonSegment(value: EntryFormTab.saving, label: Text('Saving')),
-                ButtonSegment(value: EntryFormTab.loan, label: Text('Loan')),
-              ],
-              selected: {_tab},
-              onSelectionChanged: (v) => _selectTab(v.first),
-            ),
+            _buildTabBar(),
             const SizedBox(height: 16),
             TextFormField(
               controller: _descCtrl,
@@ -357,6 +353,20 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                 items: _categoryItems(categories),
                 onChanged: (v) => setState(() => _category = v!),
               ),
+            if (_category == _personalPayment) ...[
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: _subCategory,
+                decoration: const InputDecoration(
+                  labelText: 'Sub-category',
+                  border: OutlineInputBorder(),
+                ),
+                items: _subCategories
+                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                    .toList(),
+                onChanged: (v) => setState(() => _subCategory = v!),
+              ),
+            ],
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.calendar_today),
@@ -447,6 +457,64 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     );
   }
 
+  Widget _buildTabBar() {
+    const tabs = <({EntryFormTab tab, String label, IconData icon})>[
+      (tab: EntryFormTab.expense, label: 'Expense', icon: Icons.arrow_downward),
+      (tab: EntryFormTab.income, label: 'Income', icon: Icons.arrow_upward),
+      (tab: EntryFormTab.saving, label: 'Saving', icon: Icons.savings),
+      (tab: EntryFormTab.loan, label: 'Loan', icon: Icons.handshake),
+    ];
+
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: scheme.outline),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          for (final t in tabs)
+            Expanded(
+              flex: _tab == t.tab ? 2 : 1,
+              child: InkWell(
+                onTap: () => _selectTab(t.tab),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _tab == t.tab ? scheme.primaryContainer : null,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        t.icon,
+                        size: 18,
+                        color: _tab == t.tab
+                            ? scheme.onPrimaryContainer
+                            : scheme.onSurfaceVariant,
+                      ),
+                      if (_tab == t.tab) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          t.label,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: scheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _lockedCategoryField(String label) {
     return TextFormField(
       initialValue: label,
@@ -483,6 +551,8 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
 
   static const int _savingCategory = 4;
   static const int _loanCategory = 2;
+  static const int _personalPayment = 0;
+  static const _subCategories = ['Food', 'Fuel', 'Meat', 'Extra'];
 
   /// v1 keeps 0=PersonalPayment, 1=BillSharing, 2=Loan, 3=Income. The legacy
   /// `Loan` category is intentionally hidden from the Expense dropdown so new

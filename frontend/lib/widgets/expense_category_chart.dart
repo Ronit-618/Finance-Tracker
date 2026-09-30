@@ -12,6 +12,7 @@ class ExpenseCategoryChart extends StatelessWidget {
     Color(0xFF3498DB),
     Color(0xFF2ECC71),
     Color(0xFFF39C12),
+    Color(0xFFE67E22),
   ];
 
   @override
@@ -24,7 +25,7 @@ class ExpenseCategoryChart extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Expense by Category',
+              Text('Expense & Repayment by Category',
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 16),
               const Center(child: Text('No data yet')),
@@ -43,7 +44,7 @@ class ExpenseCategoryChart extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Expense by Category',
+            Text('Expense & Repayment by Category',
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 16),
             Center(

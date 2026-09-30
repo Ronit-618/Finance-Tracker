@@ -5,6 +5,7 @@ import '../main.dart' show routeObserver;
 import '../models/category_total.dart';
 import '../models/entry_group.dart';
 import '../models/entry_summary.dart';
+import '../models/ledger_item.dart';
 import '../models/loan.dart';
 import '../models/pending_store.dart';
 import '../models/saving.dart';
@@ -13,9 +14,8 @@ import '../services/api_service.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/network_error_view.dart';
 import '../widgets/position_card.dart';
-import '../widgets/savings_chart.dart';
 import '../widgets/expense_category_chart.dart';
-import '../widgets/income_vs_expense_chart.dart';
+import '../widgets/ledger_pie_chart.dart';
 import '../widgets/top_spending_list.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -30,6 +30,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
   EntrySummary? _summary;
   List<EntryGroup> _monthlyGroups = [];
   List<CategoryTotal> _categoryExpenses = [];
+  LedgerSummary? _ledgerSummary;
   SavingSummary? _savingSummary;
   LoanSummary? _loanSummary;
   bool _loading = true;
@@ -71,12 +72,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
         widget.api.getSummary(),
         widget.api.getGrouped(period: 'month'),
         widget.api.getCategoryTotals(type: 0),
+        widget.api.getLedgerSummary(),
       ]);
       if (!mounted) return;
       setState(() {
         _summary = results[0] as EntrySummary;
         _monthlyGroups = results[1] as List<EntryGroup>;
         _categoryExpenses = results[2] as List<CategoryTotal>;
+        _ledgerSummary = results[3] as LedgerSummary;
         _loading = false;
       });
     } catch (e) {
@@ -110,6 +113,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
       debugPrint('Position section failed to load: $e');
     }
   }
+
+  static final _emptyLedgerSummary = LedgerSummary(
+    totalIncome: 0,
+    totalExpense: 0,
+    totalSaved: 0,
+    totalBorrowed: 0,
+    totalLent: 0,
+    totalRepaid: 0,
+    totalRepaidOut: 0,
+    repaidOutCount: 0,
+    balance: 0,
+    totalRecords: 0,
+  );
 
   void _retry() {
     setState(() => _error = null);
@@ -152,11 +168,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
                   const SizedBox(height: 8),
                   ..._monthlyGroups.reversed.take(6).map(_buildTrendRow),
                   const SizedBox(height: 24),
-                  ExpenseCategoryChart(data: _categoryExpenses),
+                  ExpenseCategoryChart(data: _expenseChartData),
                   const SizedBox(height: 16),
-                  IncomeVsExpenseChart(groups: _monthlyGroups),
-                  const SizedBox(height: 16),
-                  SavingsChart(groups: _monthlyGroups),
+                  LedgerPieChart(summary: _ledgerSummary ?? _emptyLedgerSummary),
                   const SizedBox(height: 16),
                   TopSpendingList(data: _categoryExpenses),
                 ],
@@ -165,8 +179,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
     );
   }
 
+  /// Expense categories plus, as its own slice, the repayments the user made on
+  /// loans they borrowed — money actually paid out to others.
+  List<CategoryTotal> get _expenseChartData {
+    final data = [..._categoryExpenses];
+    final repaidOut = _ledgerSummary?.totalRepaidOut ?? 0;
+    if (repaidOut > 0) {
+      data.add(CategoryTotal(
+        category: 'Loan Repayment',
+        total: repaidOut,
+        entryCount: _ledgerSummary?.repaidOutCount ?? 0,
+      ));
+    }
+    return data;
+  }
+
   Widget _buildSummaryCard() {
     if (_summary == null) return const SizedBox.shrink();
+    final balance = _ledgerSummary?.balance ?? _summary!.balance;
     return Card(
       elevation: 2,
       child: Padding(
@@ -186,10 +216,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with RouteAwa
               children: [
                 Text('Balance: ', style: Theme.of(context).textTheme.titleMedium),
                 Text(
-                  NumberFormat.currency(symbol: 'Rs. ').format(_summary!.balance),
+                  NumberFormat.currency(symbol: 'Rs. ').format(balance),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: _summary!.balance >= 0 ? Colors.blue : Colors.orange,
+                    color: balance >= 0 ? Colors.blue : Colors.orange,
                   ),
                 ),
               ],
