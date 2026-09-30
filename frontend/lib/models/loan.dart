@@ -17,6 +17,12 @@ class Loan {
   final DateTime createdAt;
   final String? bsDate;
 
+  /// Sum of this loan's repayments.
+  final double amountRepaid;
+
+  /// Amount still owed. Never negative.
+  late final double outstanding = (amount - amountRepaid).clamp(0, double.infinity);
+
   Loan({
     required this.id,
     required this.sn,
@@ -33,6 +39,7 @@ class Loan {
     required this.isCompleted,
     required this.createdAt,
     this.bsDate,
+    this.amountRepaid = 0,
   });
 
   bool get isBorrowed => direction.toLowerCase() == 'borrowed';
@@ -58,6 +65,7 @@ class Loan {
         isCompleted: json['isCompleted'] as int? ?? 0,
         createdAt: DateTime.parse(json['createdAt'] as String),
         bsDate: json['bsDate'] as String?,
+        amountRepaid: (json['amountRepaid'] as num?)?.toDouble() ?? 0,
       );
 }
 

@@ -249,6 +249,17 @@ class _LoanListScreenState extends ConsumerState<LoanListScreen> {
                                               : Colors.green,
                                         ),
                                       ),
+                                      if (l.amountRepaid > 0)
+                                        Text(
+                                          '${NumberFormat.currency(symbol: 'Rs. ').format(l.outstanding)} left',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                        ),
                                       if (l.isSettled)
                                         Text(
                                           'Settled',
