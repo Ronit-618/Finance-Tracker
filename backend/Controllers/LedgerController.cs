@@ -177,6 +177,15 @@ public class LedgerController : ControllerBase
         var totalLent = loans.Where(l => l.Direction == LoanDirection.Lent).Sum(l => l.Amount);
         var totalRepaid = repayments.Sum(r => r.Amount);
 
+        // Repayments split by the direction of the parent loan: money paid out to
+        // others (borrowed) versus money received back (lent).
+        var borrowedLoanIds = loans
+            .Where(l => l.Direction == LoanDirection.Borrowed)
+            .Select(l => l.Id)
+            .ToHashSet();
+        var repaidOut = repayments.Where(r => borrowedLoanIds.Contains(r.LoanId)).ToList();
+        var totalRepaidOut = repaidOut.Sum(r => r.Amount);
+
         return new LedgerSummaryResponse
         {
             TotalIncome = totalIncome,
@@ -185,6 +194,8 @@ public class LedgerController : ControllerBase
             TotalBorrowed = totalBorrowed,
             TotalLent = totalLent,
             TotalRepaid = totalRepaid,
+            TotalRepaidOut = totalRepaidOut,
+            RepaidOutCount = repaidOut.Count,
             Balance = totalIncome - totalExpense - totalSaved - totalLent - totalRepaid + totalBorrowed,
             TotalRecords = entries.Count + savings.Count + loans.Count + repayments.Count
         };

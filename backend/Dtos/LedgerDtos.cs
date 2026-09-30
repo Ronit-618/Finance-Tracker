@@ -61,6 +61,14 @@ public class LedgerSummaryResponse
     public decimal TotalBorrowed { get; set; }
     public decimal TotalLent { get; set; }
     public decimal TotalRepaid { get; set; }
+
+    /// <summary>
+    /// Repayments against loans the user borrowed — money paid out to others.
+    /// Shown as its own slice in the expense chart.
+    /// </summary>
+    public decimal TotalRepaidOut { get; set; }
+    public int RepaidOutCount { get; set; }
+
     public decimal Balance { get; set; }
     public int TotalRecords { get; set; }
 }
