@@ -115,6 +115,8 @@ public class LoanController : ControllerBase
             return BadRequest("Provide either FromPerson or ToPerson");
         if (!string.IsNullOrEmpty(fromPerson) && !string.IsNullOrEmpty(toPerson))
             return BadRequest("Provide only one of FromPerson or ToPerson, not both");
+        if (LoanPartyHelper.IsMe(fromPerson) || LoanPartyHelper.IsMe(toPerson))
+            return BadRequest("Both cannot be you");
 
         var direction = fromPerson != null ? LoanDirection.Borrowed : LoanDirection.Lent;
 
@@ -163,6 +165,8 @@ public class LoanController : ControllerBase
             return BadRequest("Provide either FromPerson or ToPerson");
         if (!string.IsNullOrEmpty(fromPerson) && !string.IsNullOrEmpty(toPerson))
             return BadRequest("Provide only one of FromPerson or ToPerson, not both");
+        if (LoanPartyHelper.IsMe(fromPerson) || LoanPartyHelper.IsMe(toPerson))
+            return BadRequest("Both cannot be you");
 
         loan.Description = request.Description;
         loan.Amount = request.Amount;

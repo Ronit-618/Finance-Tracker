@@ -11,6 +11,7 @@ import '../providers/settings_providers.dart';
 import '../services/api_service.dart';
 import '../services/screenshot_service.dart';
 import '../models/pending_store.dart';
+import '../utils/loan_party.dart';
 import '../utils/snackbar_helper.dart';
 
 /// Which of the four v2 forms is showing. [expense] and [income] post to
@@ -144,10 +145,16 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     setState(() {});
   }
 
-  String? _validateParty(String? value) {
+  String? _validateFrom(String? value) {
     if (_fromCtrl.text.trim().isEmpty && _toCtrl.text.trim().isEmpty) {
       return 'Enter who you borrowed from, or who you lent to';
     }
+    if (isMeValue(_fromCtrl.text)) return 'Both cannot be you';
+    return null;
+  }
+
+  String? _validateTo(String? value) {
+    if (isMeValue(_toCtrl.text)) return 'Both cannot be you';
     return null;
   }
 
@@ -317,25 +324,30 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                 controller: _fromCtrl,
                 onChanged: _onFromChanged,
                 enabled: _toCtrl.text.trim().isEmpty,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'From',
+                  hintText: _toCtrl.text.trim().isNotEmpty ? kMeLabel : null,
                   helperText: "From = you'll pay it back later",
                   helperMaxLines: 2,
-                  border: OutlineInputBorder(),
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  border: const OutlineInputBorder(),
                 ),
-                validator: _validateParty,
+                validator: _validateFrom,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _toCtrl,
                 onChanged: _onToChanged,
                 enabled: _fromCtrl.text.trim().isEmpty,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'To',
+                  hintText: _fromCtrl.text.trim().isNotEmpty ? kMeLabel : null,
                   helperText: "To = you'll get it back later",
                   helperMaxLines: 2,
-                  border: OutlineInputBorder(),
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                  border: const OutlineInputBorder(),
                 ),
+                validator: _validateTo,
               ),
             ],
             const SizedBox(height: 16),
