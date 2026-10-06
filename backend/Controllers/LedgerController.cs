@@ -87,6 +87,9 @@ public class LedgerController : ControllerBase
                 Description = s.Description,
                 Amount = -s.Amount,
                 Category = s.Category,
+                // Savings have no sub-category of their own; the type name keeps
+                // every sub-category slot non-null without a client-editable value.
+                SubCategory = s.Category,
                 ScreenshotPath = s.ScreenshotPath,
                 BsDate = NepaliDateService.AdToBs(s.Date),
                 IsCompleted = s.IsCompleted,
@@ -107,6 +110,9 @@ public class LedgerController : ControllerBase
                 Description = l.Description,
                 Amount = isBorrowed ? l.Amount : -l.Amount,
                 Category = l.Category,
+                // Loans have no sub-category of their own; the type name keeps
+                // every sub-category slot non-null without a client-editable value.
+                SubCategory = l.Category,
                 ScreenshotPath = l.ScreenshotPath,
                 BsDate = NepaliDateService.AdToBs(l.Date),
                 IsCompleted = l.IsCompleted,
