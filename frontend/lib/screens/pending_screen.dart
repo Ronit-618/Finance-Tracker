@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/pending_store.dart';
+import '../utils/snackbar_helper.dart';
 import '../providers/drawer_provider.dart';
 import '../services/api_service.dart';
 import '../services/screenshot_service.dart';
@@ -42,6 +44,40 @@ class _PendingScreenState extends ConsumerState<PendingScreen> {
         capturedAt: DateTime.now(),
       ));
     });
+  }
+
+  Future<void> _confirmDelete(PendingCapture capture) async {
+    HapticFeedback.mediumImpact();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Do you want to delete?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      _store.remove(capture.path);
+    });
+    try {
+      final file = File(capture.path);
+      final path = capture.path;
+      if (!path.contains('/storage/emulated/0/FinanceTracker/') && await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {}
+    if (mounted) {
+      showSuccessSnackBar(context, 'Capture removed', backgroundColor: Colors.red);
+    }
   }
 
   void _openForm(PendingCapture capture) async {
@@ -143,6 +179,7 @@ class _PendingScreenState extends ConsumerState<PendingScreen> {
                       ),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => _openForm(capture),
+                      onLongPress: () => _confirmDelete(capture),
                     ),
                   );
                 },
