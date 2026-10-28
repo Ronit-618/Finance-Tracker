@@ -274,6 +274,13 @@ namespace FinanceTracker.Api.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Deposit");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Date");

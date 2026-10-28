@@ -1,3 +1,4 @@
+import 'entry_form_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -116,6 +117,19 @@ class _SavingListScreenState extends ConsumerState<SavingListScreen> {
         ],
       ),
       drawer: AppDrawer(pendingCount: PendingStore().length),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final res = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => EntryFormScreen(api: widget.api),
+            ),
+          );
+          if (res == true) _loadData();
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Add Saving / Withdrawal'),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null && _savings.isEmpty
@@ -136,7 +150,7 @@ class _SavingListScreenState extends ConsumerState<SavingListScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Total Saved',
+                                      'Current Savings',
                                       style: TextStyle(
                                         color: Theme.of(context)
                                             .colorScheme
@@ -152,6 +166,20 @@ class _SavingListScreenState extends ConsumerState<SavingListScreen> {
                                         fontWeight: FontWeight.bold,
                                         color: Colors.green,
                                       ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'Deposited: ${NumberFormat.currency(symbol: 'Rs. ').format(_summary!.totalDeposited)}',
+                                          style: const TextStyle(fontSize: 12, color: Colors.green),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          'Withdrawn: ${NumberFormat.currency(symbol: 'Rs. ').format(_summary!.totalWithdrawn)}',
+                                          style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -211,25 +239,41 @@ class _SavingListScreenState extends ConsumerState<SavingListScreen> {
                               child: Card(
                                 child: ListTile(
                                   leading: CircleAvatar(
-                                    backgroundColor: Theme.of(context)
-                                        .colorScheme
-                                        .primaryContainer,
-                                    child: const Icon(Icons.savings,
-                                        color: Colors.green),
+                                    backgroundColor: s.isWithdrawal
+                                        ? Theme.of(context).colorScheme.errorContainer
+                                        : Theme.of(context).colorScheme.primaryContainer,
+                                    child: Icon(
+                                      s.isWithdrawal ? Icons.outbox : Icons.savings,
+                                      color: s.isWithdrawal ? Colors.orange.shade800 : Colors.green,
+                                    ),
                                   ),
                                   title: Text(s.description),
-                                  subtitle: DateDisplay(
-                                    date: s.date,
-                                    bsDate: s.bsDate,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  subtitle: Row(
+                                    children: [
+                                      Flexible(
+                                        child: DateDisplay(
+                                          date: s.date,
+                                          bsDate: s.bsDate,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const Text('  •  '),
+                                      Text(
+                                        s.type,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: s.isWithdrawal ? Colors.orange.shade800 : Colors.green,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   trailing: Text(
-                                    NumberFormat.currency(symbol: 'Rs. ')
-                                        .format(s.amount),
-                                    style: const TextStyle(
+                                    '${s.isWithdrawal ? '-' : '+'}${NumberFormat.currency(symbol: 'Rs. ').format(s.amount)}',
+                                    style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.green,
+                                      color: s.isWithdrawal ? Colors.orange.shade800 : Colors.green,
                                     ),
                                   ),
                                 ),

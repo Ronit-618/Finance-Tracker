@@ -5,6 +5,7 @@ public class CreateSavingRequest
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+    public string? Type { get; set; } = "Deposit";
     public string? ScreenshotPath { get; set; }
 }
 
@@ -12,6 +13,7 @@ public class UpdateSavingRequest
 {
     public string Description { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+    public string? Type { get; set; }
     public string? ScreenshotPath { get; set; }
 }
 
@@ -23,6 +25,7 @@ public class SavingResponse
     public string Description { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public string Category { get; set; } = "Saving";
+    public string Type { get; set; } = "Deposit";
     public string? ScreenshotPath { get; set; }
     public int IsCompleted { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -32,5 +35,7 @@ public class SavingResponse
 public class SavingSummaryResponse
 {
     public decimal TotalSaved { get; set; }
+    public decimal TotalDeposited { get; set; }
+    public decimal TotalWithdrawn { get; set; }
     public int Count { get; set; }
 }

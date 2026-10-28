@@ -26,6 +26,11 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
   late int _adMonth;
   late int _bsYear;
   late int _bsMonth;
+  bool _isRangeMode = false;
+  int? _rangeFromYear;
+  int? _rangeFromMonth;
+  int? _rangeToYear;
+  int? _rangeToMonth;
   TrialBalanceResponse? _trialBalance;
   List<Entry> _entries = [];
   bool _loading = false;
@@ -45,7 +50,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     final now = DateTime.now();
     _adYear = now.year;
     _adMonth = now.month;
@@ -66,18 +71,30 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
 
   Future<void> _loadData() async {
     setState(() => _loading = true);
+    // Declare futures outside if/else so they're in scope for catch blocks
+    Future<TrialBalanceResponse>? tbFuture;
+    Future<List<Entry>>? entriesFuture;
     try {
       final bs = _isBs;
-      Future<TrialBalanceResponse> tbFuture;
-      Future<List<Entry>> entriesFuture;
-      if (bs) {
-        tbFuture = widget.api.getTrialBalance(bsYear: _bsYear, bsMonth: _bsMonth);
-        entriesFuture = widget.api.getEntries(bsYear: _bsYear, bsMonth: _bsMonth);
+      if (_isRangeMode) {
+        final fromDate = _rangeFromYear != null && _rangeFromMonth != null
+            ? DateTime(_rangeFromYear!, _rangeFromMonth!, 1)
+            : null;
+        final toDate = _isRangeMode && _rangeToYear != null && _rangeToMonth != null
+            ? DateTime(_rangeToYear! + (_rangeToMonth! + 1 > 12 ? 1 : 0), _rangeToMonth! + 1 > 12 ? _rangeToMonth! - 11 : _rangeToMonth! + 1, 1)
+            : null;
+        tbFuture = widget.api.getTrialBalance(from: fromDate, to: toDate);
+        entriesFuture = widget.api.getEntries(from: fromDate, to: toDate);
       } else {
-        final from = DateTime(_adYear, _adMonth, 1);
-        final to = DateTime(_adYear, _adMonth + 1, 0);
-        tbFuture = widget.api.getTrialBalance(year: _adYear, month: _adMonth);
-        entriesFuture = widget.api.getEntries(from: from, to: to);
+        if (bs) {
+          tbFuture = widget.api.getTrialBalance(bsYear: _bsYear, bsMonth: _bsMonth);
+          entriesFuture = widget.api.getEntries(bsYear: _bsYear, bsMonth: _bsMonth);
+        } else {
+          final from = DateTime(_adYear, _adMonth, 1);
+          final to = DateTime(_adYear, _adMonth + 1, 0);
+          tbFuture = widget.api.getTrialBalance(year: _adYear, month: _adMonth);
+          entriesFuture = widget.api.getEntries(from: from, to: to);
+        }
       }
       final results = await Future.wait([tbFuture, entriesFuture]);
       setState(() {
@@ -123,7 +140,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
   Color _expenseColor(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark ? Colors.red.shade400 : Colors.red;
 
-  @override
+    @override
   Widget build(BuildContext context) {
     ref.watch(dateFormatProvider);
     ref.listen<DateFormatMode>(dateFormatProvider, (prev, next) {
@@ -143,6 +160,29 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: Tooltip(
+              message: _isRangeMode ? 'Clear range filter' : 'Open range filter',
+              child: IconButton(
+                icon: Icon(_isRangeMode ? Icons.clear : Icons.date_range),
+                onPressed: () {
+                  setState(() {
+                    if (_isRangeMode) {
+                      _isRangeMode = false;
+                      _rangeFromYear = null;
+                      _rangeFromMonth = null;
+                      _rangeToYear = null;
+                      _rangeToMonth = null;
+                    } else {
+                      _isRangeMode = true;
+                    }
+                  });
+                  _loadData();
+                },
+              ),
+            ),
+          ),
         ],
       ),
       drawer: AppDrawer(pendingCount: PendingStore().length),
@@ -154,6 +194,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
             tabs: const [
               Tab(text: 'Trial Balance'),
               Tab(text: 'Transactions'),
+              Tab(text: 'Loans'),
             ],
           ),
           Expanded(
@@ -166,6 +207,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
                         children: [
                           _buildTrialBalance(),
                           _buildTransactions(),
+                          _buildLoans(),
                         ],
                       ),
           ),
@@ -417,6 +459,46 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> with SingleTicker
               fontWeight: FontWeight.bold,
               color: isIncome ? _incomeColor(context) : _expenseColor(context),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoans() {
+    final loanEntries = _entries.where((e) => e.category == 2).toList(); // Category = Loan
+    if (loanEntries.isEmpty) {
+      return const Center(child: Text('No loan entries this month'));
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: loanEntries.length,
+      itemBuilder: (_, i) => _buildLoanEntryTile(loanEntries[i]),
+    );
+  }
+
+  Widget _buildLoanEntryTile(Entry entry) {
+    final isIncome = entry.type == 1;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: isIncome
+              ? Theme.of(context).colorScheme.primaryContainer
+              : Theme.of(context).colorScheme.errorContainer,
+          child: Icon(
+            isIncome ? Icons.arrow_upward : Icons.arrow_downward,
+            color: isIncome ? _incomeColor(context) : _expenseColor(context),
+          ),
+        ),
+        title: Text(entry.description),
+        subtitle: DateDisplay(entry: entry, maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: Text(
+          '${isIncome ? '+' : '-'}${NumberFormat.currency(symbol: 'Rs. ').format(entry.amount)}',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: isIncome ? _incomeColor(context) : _expenseColor(context),
           ),
         ),
       ),

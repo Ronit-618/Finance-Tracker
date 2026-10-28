@@ -218,7 +218,7 @@ class ApiService {
     return EntrySummary.fromJson(jsonDecode(res.body));
   }
 
-  Future<TrialBalanceResponse> getTrialBalance({int? year, int? month, int? bsYear, int? bsMonth}) async {
+  Future<TrialBalanceResponse> getTrialBalance({int? year, int? month, int? bsYear, int? bsMonth, DateTime? from, DateTime? to}) async {
     final params = <String, String>{};
     if (year != null && month != null) {
       params['year'] = year.toString();
@@ -226,6 +226,8 @@ class ApiService {
     }
     if (bsYear != null) params['bsYear'] = bsYear.toString();
     if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
+    if (from != null) params['from'] = from.toIso8601String().split('T')[0];
+    if (to != null) params['to'] = to.toIso8601String().split('T')[0];
     final uri = Uri.parse('$baseUrl/api/Entry/trial-balance').replace(queryParameters: params.isNotEmpty ? params : null);
     final res = await _get(uri);
     if (res.statusCode != 200) throw ApiException('Failed to load trial balance (${res.statusCode})');
@@ -317,12 +319,14 @@ int? category,
     DateTime? to,
     int? bsYear,
     int? bsMonth,
+    String? type,
   }) async {
     final params = <String, String>{};
     if (from != null) params['from'] = from.toIso8601String().split('T')[0];
     if (to != null) params['to'] = to.toIso8601String().split('T')[0];
     if (bsYear != null) params['bsYear'] = bsYear.toString();
     if (bsMonth != null) params['bsMonth'] = bsMonth.toString();
+    if (type != null) params['type'] = type;
 
     final uri = Uri.parse('$baseUrl/api/Saving').replace(queryParameters: params.isNotEmpty ? params : null);
     final res = await _get(uri);
@@ -341,20 +345,39 @@ int? category,
     final res = await _post(Uri.parse('$baseUrl/api/Saving'), jsonEncode(body));
     if (res.statusCode != 201) {
       dev.log('createSaving failed: ${res.statusCode} ${res.body}', name: 'ApiService');
-      throw ApiException('Failed to create saving (${res.statusCode})');
+      final msg = res.body.isNotEmpty ? res.body : 'Failed to create saving (${res.statusCode})';
+      throw ApiException(msg);
+    }
+    return Saving.fromJson(jsonDecode(res.body));
+  }
+
+  Future<Saving> createWithdrawal(Map<String, dynamic> body) async {
+    final payload = Map<String, dynamic>.from(body);
+    payload['type'] = 'Withdrawal';
+    final res = await _post(Uri.parse('$baseUrl/api/Saving/withdraw'), jsonEncode(payload));
+    if (res.statusCode != 201) {
+      dev.log('createWithdrawal failed: ${res.statusCode} ${res.body}', name: 'ApiService');
+      final msg = res.body.isNotEmpty ? res.body : 'Failed to create withdrawal (${res.statusCode})';
+      throw ApiException(msg);
     }
     return Saving.fromJson(jsonDecode(res.body));
   }
 
   Future<Saving> updateSaving(int id, Map<String, dynamic> body) async {
     final res = await _put(Uri.parse('$baseUrl/api/Saving/$id'), jsonEncode(body));
-    if (res.statusCode != 200) throw ApiException('Failed to update saving (${res.statusCode})');
+    if (res.statusCode != 200) {
+      final msg = res.body.isNotEmpty ? res.body : 'Failed to update saving (${res.statusCode})';
+      throw ApiException(msg);
+    }
     return Saving.fromJson(jsonDecode(res.body));
   }
 
   Future<void> deleteSaving(int id) async {
     final res = await _delete(Uri.parse('$baseUrl/api/Saving/$id'));
-    if (res.statusCode != 204) throw ApiException('Failed to delete saving (${res.statusCode})');
+    if (res.statusCode != 204) {
+      final msg = res.body.isNotEmpty ? res.body : 'Failed to delete saving (${res.statusCode})';
+      throw ApiException(msg);
+    }
   }
 
   Future<SavingSummary> getSavingSummary({

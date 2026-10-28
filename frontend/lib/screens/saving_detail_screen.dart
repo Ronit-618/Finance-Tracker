@@ -92,9 +92,13 @@ class SavingDetailScreen extends ConsumerWidget {
               child: Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    child: const Icon(Icons.savings, color: Colors.green),
+                    backgroundColor: saving.isWithdrawal
+                        ? Theme.of(context).colorScheme.errorContainer
+                        : Theme.of(context).colorScheme.primaryContainer,
+                    child: Icon(
+                      saving.isWithdrawal ? Icons.outbox : Icons.savings,
+                      color: saving.isWithdrawal ? Colors.orange.shade800 : Colors.green,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -108,12 +112,11 @@ class SavingDetailScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          NumberFormat.currency(symbol: 'Rs. ')
-                              .format(saving.amount),
-                          style: const TextStyle(
+                          '${saving.isWithdrawal ? '-' : '+'}${NumberFormat.currency(symbol: 'Rs. ').format(saving.amount)}',
+                          style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green,
+                            color: saving.isWithdrawal ? Colors.orange.shade800 : Colors.green,
                           ),
                         ),
                       ],
@@ -139,6 +142,7 @@ class SavingDetailScreen extends ConsumerWidget {
                     value: formatRecordDate(context, ref, saving.date,
                         saving.bsDate),
                   ),
+                  RecordDetailRow(label: 'Type', value: saving.type),
                   RecordDetailRow(label: 'Category', value: saving.category),
                   RecordDetailRow(
                     label: 'Amount',

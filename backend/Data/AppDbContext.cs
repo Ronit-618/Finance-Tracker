@@ -66,6 +66,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(500);
             entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
             entity.Property(e => e.Category).HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.Type).HasConversion<string>().HasMaxLength(20).HasDefaultValue(SavingType.Deposit);
             entity.Property(e => e.ScreenshotPath).HasMaxLength(1000);
             entity.Property(e => e.IsCompleted).HasDefaultValue(0);
             entity.HasIndex(e => e.SN);

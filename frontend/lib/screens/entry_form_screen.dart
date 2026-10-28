@@ -50,6 +50,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   late int _category;
   late String _subCategory;
   late EntryFormTab _tab;
+  String _savingType = 'Deposit';
   bool _saving = false;
 
   bool get _isEditing =>
@@ -87,6 +88,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       _date = s.date;
       _tab = EntryFormTab.saving;
       _category = _savingCategory;
+      _savingType = s.type;
     } else if (l != null) {
       _descCtrl.text = l.description;
       _amountCtrl.text = l.amount.toString();
@@ -119,6 +121,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       // Category is always derived from the tab, never trusted from the user.
       if (tab == EntryFormTab.saving) {
         _category = _savingCategory;
+        if (!_isEditing) _savingType = 'Deposit';
       } else if (tab == EntryFormTab.loan) {
         _category = _loanCategory;
       } else {
@@ -212,6 +215,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           if (!_isEditing) 'date': DateFormat('yyyy-MM-dd').format(_date),
           'description': desc,
           'amount': amount,
+          'type': _savingType,
           'screenshotPath': ?screenshot,
         };
         if (_isEditing) {
@@ -351,8 +355,34 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
               ),
             ],
             const SizedBox(height: 16),
-            if (_isSaving)
-              _lockedCategoryField('Saving')
+            if (_isSaving) ...[
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'Deposit',
+                    label: Text('Deposit'),
+                    icon: Icon(Icons.arrow_downward, color: Colors.green),
+                  ),
+                  ButtonSegment(
+                    value: 'Withdrawal',
+                    label: Text('Withdrawal'),
+                    icon: Icon(Icons.arrow_upward, color: Colors.orange),
+                  ),
+                ],
+                selected: {_savingType},
+                onSelectionChanged: _isEditing
+                    ? null
+                    : (selected) {
+                        setState(() => _savingType = selected.first);
+                      },
+              ),
+              const SizedBox(height: 16),
+              _lockedCategoryField(
+                _savingType == 'Withdrawal'
+                    ? 'Saving (Withdrawal)'
+                    : 'Saving (Deposit)',
+              ),
+            ]
             else if (_isLoan)
               _lockedCategoryField('Loan')
             else

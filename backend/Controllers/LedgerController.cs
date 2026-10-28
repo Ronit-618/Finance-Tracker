@@ -78,6 +78,7 @@ public class LedgerController : ControllerBase
 
         foreach (var s in savings)
         {
+            var isWithdrawal = s.Type == SavingType.Withdrawal;
             items.Add(new LedgerItemResponse
             {
                 Kind = "saving",
@@ -85,11 +86,11 @@ public class LedgerController : ControllerBase
                 SN = s.SN,
                 Date = s.Date,
                 Description = s.Description,
-                Amount = -s.Amount,
+                Amount = isWithdrawal ? s.Amount : -s.Amount,
                 Category = s.Category,
-                // Savings have no sub-category of their own; the type name keeps
-                // every sub-category slot non-null without a client-editable value.
-                SubCategory = s.Category,
+                // Savings sub-category distinguishes between Deposit and Withdrawal
+                // while keeping the slot non-null.
+                SubCategory = isWithdrawal ? "Withdrawal" : "Deposit",
                 ScreenshotPath = s.ScreenshotPath,
                 BsDate = NepaliDateService.AdToBs(s.Date),
                 IsCompleted = s.IsCompleted,
@@ -179,7 +180,9 @@ public class LedgerController : ControllerBase
 
         var totalIncome = entries.Where(e => e.Type == EntryType.Income).Sum(e => e.Amount);
         var totalExpense = entries.Where(e => e.Type == EntryType.Expense).Sum(e => e.Amount);
-        var totalSaved = savings.Sum(s => s.Amount);
+        var totalDeposited = savings.Where(s => s.Type == SavingType.Deposit).Sum(s => s.Amount);
+        var totalWithdrawn = savings.Where(s => s.Type == SavingType.Withdrawal).Sum(s => s.Amount);
+        var netSaved = totalDeposited - totalWithdrawn;
         var totalBorrowed = loans.Where(l => l.Direction == LoanDirection.Borrowed).Sum(l => l.Amount);
         var totalLent = loans.Where(l => l.Direction == LoanDirection.Lent).Sum(l => l.Amount);
         var totalRepaid = repayments.Sum(r => r.Amount);
@@ -197,13 +200,13 @@ public class LedgerController : ControllerBase
         {
             TotalIncome = totalIncome,
             TotalExpense = totalExpense,
-            TotalSaved = totalSaved,
+            TotalSaved = netSaved,
             TotalBorrowed = totalBorrowed,
             TotalLent = totalLent,
             TotalRepaid = totalRepaid,
             TotalRepaidOut = totalRepaidOut,
             RepaidOutCount = repaidOut.Count,
-            Balance = totalIncome - totalExpense - totalSaved - totalLent - totalRepaid + totalBorrowed,
+            Balance = totalIncome - totalExpense - netSaved - totalLent - totalRepaid + totalBorrowed,
             TotalRecords = entries.Count + savings.Count + loans.Count + repayments.Count
         };
     }

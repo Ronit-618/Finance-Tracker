@@ -23,7 +23,8 @@ public class SavingController : ControllerBase
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
         [FromQuery] int? bsYear,
-        [FromQuery] int? bsMonth)
+        [FromQuery] int? bsMonth,
+        [FromQuery] string? type)
     {
         if (bsYear.HasValue && bsMonth.HasValue)
         {
@@ -38,6 +39,14 @@ public class SavingController : ControllerBase
             query = query.Where(s => s.Date >= DateHelper.NormalizeToUtc(from.Value.Date));
         if (to.HasValue)
             query = query.Where(s => s.Date <= DateHelper.NormalizeToUtc(to.Value.Date));
+
+        if (!string.IsNullOrWhiteSpace(type))
+        {
+            if (Enum.TryParse<SavingType>(type, true, out var parsedType))
+            {
+                query = query.Where(s => s.Type == parsedType);
+            }
+        }
 
         var savings = await query
             .OrderByDescending(s => s.Date)
@@ -70,9 +79,14 @@ public class SavingController : ControllerBase
 
         var savings = await query.ToListAsync();
 
+        var totalDeposited = savings.Where(s => s.Type == SavingType.Deposit).Sum(s => s.Amount);
+        var totalWithdrawn = savings.Where(s => s.Type == SavingType.Withdrawal).Sum(s => s.Amount);
+
         return new SavingSummaryResponse
         {
-            TotalSaved = savings.Sum(s => s.Amount),
+            TotalSaved = totalDeposited - totalWithdrawn,
+            TotalDeposited = totalDeposited,
+            TotalWithdrawn = totalWithdrawn,
             Count = savings.Count
         };
     }
@@ -92,6 +106,21 @@ public class SavingController : ControllerBase
         if (request.Amount <= 0)
             return BadRequest("Amount must be greater than 0");
 
+        var isWithdrawal = string.Equals(request.Type, "Withdrawal", StringComparison.OrdinalIgnoreCase);
+        var savingType = isWithdrawal ? SavingType.Withdrawal : SavingType.Deposit;
+
+        if (savingType == SavingType.Withdrawal)
+        {
+            var totalDeposited = await _db.Savings.Where(s => s.Type == SavingType.Deposit).SumAsync(s => s.Amount);
+            var totalWithdrawn = await _db.Savings.Where(s => s.Type == SavingType.Withdrawal).SumAsync(s => s.Amount);
+            var available = totalDeposited - totalWithdrawn;
+
+            if (request.Amount > available)
+            {
+                return BadRequest($"Withdrawal amount (Rs. {request.Amount:N2}) exceeds available savings balance (Rs. {available:N2})");
+            }
+        }
+
         var maxSN = await _db.Savings.MaxAsync(s => (int?)s.SN) ?? 0;
 
         var saving = new Saving
@@ -101,6 +130,7 @@ public class SavingController : ControllerBase
             Description = request.Description,
             Amount = request.Amount,
             Category = "Saving",
+            Type = savingType,
             ScreenshotPath = request.ScreenshotPath,
             IsCompleted = 0,
             CreatedAt = DateTime.UtcNow
@@ -112,6 +142,13 @@ public class SavingController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = saving.Id }, MapToResponse(saving));
     }
 
+    [HttpPost("withdraw")]
+    public Task<ActionResult<SavingResponse>> Withdraw(CreateSavingRequest request)
+    {
+        request.Type = "Withdrawal";
+        return Create(request);
+    }
+
     [HttpPut("{id:int}")]
     public async Task<ActionResult<SavingResponse>> Update(int id, UpdateSavingRequest request)
     {
@@ -120,6 +157,28 @@ public class SavingController : ControllerBase
 
         if (request.Amount <= 0)
             return BadRequest("Amount must be greater than 0");
+
+        if (saving.Type == SavingType.Withdrawal)
+        {
+            var totalDeposited = await _db.Savings.Where(s => s.Type == SavingType.Deposit).SumAsync(s => s.Amount);
+            var otherWithdrawn = await _db.Savings.Where(s => s.Type == SavingType.Withdrawal && s.Id != id).SumAsync(s => s.Amount);
+            var available = totalDeposited - otherWithdrawn;
+
+            if (request.Amount > available)
+            {
+                return BadRequest($"Withdrawal amount (Rs. {request.Amount:N2}) exceeds available savings balance (Rs. {available:N2})");
+            }
+        }
+        else if (saving.Type == SavingType.Deposit)
+        {
+            var otherDeposited = await _db.Savings.Where(s => s.Type == SavingType.Deposit && s.Id != id).SumAsync(s => s.Amount);
+            var totalWithdrawn = await _db.Savings.Where(s => s.Type == SavingType.Withdrawal).SumAsync(s => s.Amount);
+
+            if (otherDeposited + request.Amount < totalWithdrawn)
+            {
+                return BadRequest($"Reducing deposit to Rs. {request.Amount:N2} would cause savings balance to be negative (Total withdrawn: Rs. {totalWithdrawn:N2})");
+            }
+        }
 
         saving.Description = request.Description;
         saving.Amount = request.Amount;
@@ -139,6 +198,17 @@ public class SavingController : ControllerBase
         var saving = await _db.Savings.FindAsync(id);
         if (saving is null) return NotFound();
 
+        if (saving.Type == SavingType.Deposit)
+        {
+            var remainingDeposited = await _db.Savings.Where(s => s.Type == SavingType.Deposit && s.Id != id).SumAsync(s => s.Amount);
+            var totalWithdrawn = await _db.Savings.Where(s => s.Type == SavingType.Withdrawal).SumAsync(s => s.Amount);
+
+            if (remainingDeposited < totalWithdrawn)
+            {
+                return BadRequest($"Cannot delete this deposit: remaining deposits (Rs. {remainingDeposited:N2}) would not cover existing withdrawals (Rs. {totalWithdrawn:N2})");
+            }
+        }
+
         _db.Savings.Remove(saving);
         await _db.SaveChangesAsync();
 
@@ -153,6 +223,7 @@ public class SavingController : ControllerBase
         Description = s.Description,
         Amount = s.Amount,
         Category = s.Category,
+        Type = s.Type.ToString(),
         ScreenshotPath = s.ScreenshotPath,
         IsCompleted = s.IsCompleted,
         CreatedAt = s.CreatedAt,

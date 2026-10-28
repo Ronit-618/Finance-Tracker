@@ -72,8 +72,15 @@ public class EntryController : ControllerBase
         [FromQuery] int? year,
         [FromQuery] int? month,
         [FromQuery] int? bsYear,
-        [FromQuery] int? bsMonth)
+        [FromQuery] int? bsMonth,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to)
     {
+        if (from != null && to != null)
+        {
+            return await GetTrialBalanceInternal(from!.Value, to!.Value);
+        }
+
         if (bsYear.HasValue && bsMonth.HasValue)
         {
             var (bsFrom, bsTo) = NepaliDateService.GetBsMonthAdRange(bsYear.Value, bsMonth.Value);
